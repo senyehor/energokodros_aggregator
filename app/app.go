@@ -8,7 +8,6 @@ import (
 	"fmt"
 	log "github.com/sirupsen/logrus"
 	"os"
-	"time"
 )
 
 type App struct {
@@ -19,54 +18,35 @@ func CreateApp() *App {
 	return &App{connection: db.GetDB()}
 }
 
-func (a *App) Aggregate(aggregationIntervalSeconds int64) bool {
-	latestRecords, err := getLatestRecords(a.connection, context.Background(), utils.GetAppConfig().QueryLimit())
-
-	if err != nil {
-		log.Error(err)
-		os.Exit(1)
+func (a *App) Aggregate(aggregationIntervalSeconds int64) int {
+	iterationsCount := 0
+	latestRecords, found := a.getLatestRecords()
+	for found {
+		a.aggregate(aggregationIntervalSeconds, latestRecords)
+		latestRecords, found = a.getLatestRecords()
+		iterationsCount++
 	}
-	if len(latestRecords) == 0 {
-		log.Infof("No records in db, finishing")
-		os.Exit(0)
-	}
+	a.Vacuum()
+	return iterationsCount
+}
 
-	earliestRecordTimeTruncated := time.
-		Unix(latestRecords[len(latestRecords)-1].RecordDateUnix, 0).
-		Truncate(time.Hour).
-		Unix()
+func (a *App) aggregate(aggregationIntervalSeconds int64, latestRecords []*data_models.SensorValueRecord) bool {
+	earliestRecordTimeTruncatedUnix := truncateToHourUnix(
+		latestRecords[len(latestRecords)-1].RecordDateUnix,
+		0,
+	)
 	// todo !!! delete after debug
-	tmp := utils.UnixToKievFormat(earliestRecordTimeTruncated, 0)
+	tmp := utils.UnixToKievFormat(earliestRecordTimeTruncatedUnix, 0)
 
 	aggregationPeriods := data_models.NewAggregationPeriodsStorage()
 
 	for _, record := range latestRecords {
-		accumulationPeriod, tooShort := data_models.NewAccumulationPeriod(record)
-
-		if tooShort {
-			continue
-		}
-		aggregationPeriodData := data_models.NewAggregationPeriodData(
-			record.BoxesSetID,
-			earliestRecordTimeTruncated-aggregationIntervalSeconds,
-			earliestRecordTimeTruncated,
-		)
-		a.createAggregationPeriodsForAggregatedRecordData(
+		a.createAccumulationPeriodsAndDistributeConsumptionBetweenThem(
+			record,
 			aggregationPeriods,
-			aggregationPeriodData,
-			accumulationPeriod,
+			earliestRecordTimeTruncatedUnix,
 			aggregationIntervalSeconds,
 		)
-		// todo !!!! delete after debug
-		aggregationPeriods.Storage[0].Repr()
-		a.distributeRecordWholeConsumptionBetweenAggregationIntervals(
-			accumulationPeriod,
-			aggregationPeriodData,
-			aggregationPeriods,
-			aggregationIntervalSeconds,
-		)
-		// todo !!!! delete after debug
-		accumulationPeriod.Repr()
 	}
 	// todo !!!! delete after debug
 	latestRecords[0].Repr()
@@ -78,6 +58,39 @@ func (a *App) Aggregate(aggregationIntervalSeconds int64) bool {
 	// todo !!!! delete after debug
 	fmt.Println(tmp)
 	return true
+}
+
+func (a *App) createAccumulationPeriodsAndDistributeConsumptionBetweenThem(
+	record *data_models.SensorValueRecord,
+	aggregationPeriods *data_models.AggregationPeriodsStorage,
+	earliestRecordTimeTruncatedUnix,
+	aggregationIntervalSeconds int64,
+) {
+	accumulationPeriod, tooShort := data_models.NewAccumulationPeriod(record)
+	if tooShort {
+		return
+	}
+	aggregationPeriodData := data_models.NewAggregationPeriodData(
+		record.BoxesSetID,
+		earliestRecordTimeTruncatedUnix-aggregationIntervalSeconds,
+		earliestRecordTimeTruncatedUnix,
+	)
+	a.createAggregationPeriodsForAggregatedRecordData(
+		aggregationPeriods,
+		aggregationPeriodData,
+		accumulationPeriod,
+		aggregationIntervalSeconds,
+	)
+	// todo !!!! delete after debug
+	aggregationPeriods.Storage[0].Repr()
+	a.distributeRecordWholeConsumptionBetweenAggregationIntervals(
+		accumulationPeriod,
+		aggregationPeriodData,
+		aggregationPeriods,
+		aggregationIntervalSeconds,
+	)
+	// todo !!!! delete after debug
+	accumulationPeriod.Repr()
 }
 
 func (a *App) updateAggregationTable(storage *data_models.AggregationPeriodsStorage) {
@@ -171,6 +184,20 @@ func (a *App) checkRecordAccumulationPeriodEndInAggregationIntervalButStartIsOut
 	return (accumulationPeriod.StartUnix < aggregationInterval.StartUnix) &&
 		(accumulationPeriod.EndUnix > aggregationInterval.StartUnix) &&
 		(accumulationPeriod.EndUnix <= aggregationInterval.EndUnix)
+}
+
+func (a *App) getLatestRecords() ([]*data_models.SensorValueRecord, bool) {
+	latestRecords, err := getLatestRecords(a.connection, context.Background(), utils.GetAppConfig().QueryLimit())
+
+	if err != nil {
+		log.Error(err)
+		os.Exit(1)
+	}
+	if len(latestRecords) == 0 {
+		log.Infof("No records in db, finishing")
+		return nil, false
+	}
+	return latestRecords, true
 }
 
 func (a *App) Vacuum() {

@@ -9,6 +9,7 @@ import (
 	"github.com/jackc/pgx/v4"
 	log "github.com/sirupsen/logrus"
 	"os"
+	"time"
 )
 
 func getLatestRecords(conn Connection, ctx context.Context, limit int) ([]*data_models.SensorValueRecord, error) {
@@ -132,4 +133,8 @@ func vacuumSensorsRecords(conn Connection, ctx context.Context) {
 		log.Debug(err)
 		os.Exit(1)
 	}
+}
+
+func truncateToHourUnix(seconds, milliseconds int64) int64 {
+	return time.Unix(seconds, milliseconds).Truncate(time.Hour).Unix()
 }
