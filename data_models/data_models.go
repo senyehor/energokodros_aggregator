@@ -59,13 +59,22 @@ func (a *AggregationPeriodsStorage) AddSensorValueForRecord(data *AggregationPer
 	a.Storage[a.GetIndexForPeriodOrCreate(data)].SensorValues += value
 }
 
-func NewAggregationPeriodsStorage() *AggregationPeriodsStorage {
-	return &AggregationPeriodsStorage{Storage: []*AggregationPeriod{}}
+func (a *AggregationPeriodsStorage) DeleteEmptyPeriods() {
+	length := len(a.Storage)
+	for i := 0; i < length; i++ {
+		if a.Storage[i].SensorValues == 0 {
+			a.Storage = append(a.Storage[:i], a.Storage[i+1:]...)
+			length--
+			i--
+		}
+	}
 }
-func newAggregationPeriod(aggregationPeriodData *AggregationPeriodData, sensorValue float64) *AggregationPeriod {
-	return &AggregationPeriod{
-		Data:         aggregationPeriodData.Copy(),
-		SensorValues: sensorValue,
+
+func (a *AggregationPeriodData) Copy() *AggregationPeriodData {
+	return &AggregationPeriodData{
+		BoxesSetID: a.BoxesSetID,
+		StartUnix:  a.StartUnix,
+		EndUnix:    a.EndUnix,
 	}
 }
 
@@ -98,28 +107,23 @@ func NewAggregationPeriodData(boxesSetID int, aggregationPeriodStartUnix int64,
 	}
 }
 
-func (a *AggregationPeriodsStorage) DeleteEmptyPeriods() {
-	length := len(a.Storage)
-	for i := 0; i < length; i++ {
-		if a.Storage[i].SensorValues == 0 {
-			a.Storage = append(a.Storage[:i], a.Storage[i+1:]...)
-			length--
-			i--
-		}
-	}
+func NewAggregationPeriodsStorage() *AggregationPeriodsStorage {
+	return &AggregationPeriodsStorage{Storage: []*AggregationPeriod{}}
 }
-
-func (a *AggregationPeriodData) Copy() *AggregationPeriodData {
-	return &AggregationPeriodData{
-		BoxesSetID: a.BoxesSetID,
-		StartUnix:  a.StartUnix,
-		EndUnix:    a.EndUnix,
+func newAggregationPeriod(aggregationPeriodData *AggregationPeriodData, sensorValue float64) *AggregationPeriod {
+	return &AggregationPeriod{
+		Data:         aggregationPeriodData.Copy(),
+		SensorValues: sensorValue,
 	}
 }
 
 func (s *SensorValueRecord) Repr() string {
 	accumulationPeriod, _ := time.ParseDuration(fmt.Sprintf("%v"+"ms", s.ValueAccumulationPeriodMilliseconds))
-	return "record date is " + utils.ShortTimeFormat(utils.UnixToKievFormat(s.RecordDateUnix, 0)) +
+	return "record date is from " +
+		utils.ShortTimeFormat(
+			utils.UnixToKievFormat(s.RecordDateUnix-s.ValueAccumulationPeriodMilliseconds/1000,
+				0)) +
+		" to " + utils.ShortTimeFormat(utils.UnixToKievFormat(s.RecordDateUnix, 0)) +
 		fmt.Sprintf(" and it (%v) was accumulated during ", s.SensorValue) + accumulationPeriod.String()
 }
 func (a *AggregationPeriod) Repr() string {
