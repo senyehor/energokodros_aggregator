@@ -117,7 +117,7 @@ func parseRowsFromSensorValues(rows Rows, maxRecordsCount int) ([]*data_models.S
 			if err != nil {
 				return nil, errors.New("something went wrong during scanning rows")
 			}
-			record.RecordDateInUnix = timePGFormat.Time.Unix()
+			record.RecordInsertedTimeUnix = timePGFormat.Time.Unix()
 			result[i] = record
 			actualRecordsCount++
 		}

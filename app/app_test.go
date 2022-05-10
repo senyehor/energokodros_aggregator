@@ -2,6 +2,7 @@ package app
 
 import (
 	"aggregator/data_models"
+	"aggregator/utils"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"math/rand"
@@ -39,6 +40,27 @@ func (t *appTestSuite) SetupTest() {
 	t.app = CreateApp()
 }
 
+func (t *appTestSuite) TestRealLifeSet() {
+	var records []*data_models.SensorValueRecord
+	id := 0
+	timeIn := time.Now().Unix()
+	for i := 0; i < 300; i++ {
+		rand.Seed(time.Now().UnixNano())
+		accumulationPeriod := t.generateRandomAccumulationInterval()
+		record := &data_models.SensorValueRecord{
+			Id:                                  id,
+			BoxesSetID:                          rand.Intn(32),
+			RecordInsertedTimeUnix:              timeIn,
+			ValueAccumulationPeriodMilliseconds: accumulationPeriod,
+			SensorValue:                         float64(t.averageConsumptionPerMillisecond * accumulationPeriod),
+			PacketID:                            rand.Intn(1000),
+		}
+		records = append(records, record)
+		timeIn -= accumulationPeriod / millisecond
+	}
+	t.testForRecords(records)
+}
+
 func (t *appTestSuite) TestSixHoursIncomingRecordsAccumulationIntervalDefault() {
 	startTime := time.Now().Unix()
 	defaultInterval := 30 * second
@@ -50,7 +72,7 @@ func (t *appTestSuite) TestSixHoursIncomingRecordsAccumulationIntervalDefault() 
 		record := &data_models.SensorValueRecord{
 			Id:                                  id,
 			BoxesSetID:                          (id % 16) + 1,
-			RecordDateInUnix:                    endTime,
+			RecordInsertedTimeUnix:              endTime,
 			ValueAccumulationPeriodMilliseconds: accumulationPeriod,
 			SensorValue:                         float64(t.averageConsumptionPerMillisecond * accumulationPeriod),
 			PacketID:                            rand.Intn(1000),
@@ -71,7 +93,7 @@ func (t *appTestSuite) TestDayLongAndTwoDaysLongRecords() {
 	record := &data_models.SensorValueRecord{
 		Id:                                  2,
 		BoxesSetID:                          1,
-		RecordDateInUnix:                    twoDaysAfterNow,
+		RecordInsertedTimeUnix:              twoDaysAfterNow,
 		ValueAccumulationPeriodMilliseconds: twoDaysInMilliseconds,
 		SensorValue:                         float64(t.averageConsumptionPerMillisecond * twoDaysInMilliseconds),
 		PacketID:                            rand.Intn(1000),
@@ -80,7 +102,7 @@ func (t *appTestSuite) TestDayLongAndTwoDaysLongRecords() {
 	record = &data_models.SensorValueRecord{
 		Id:                                  1,
 		BoxesSetID:                          1,
-		RecordDateInUnix:                    now.Unix(),
+		RecordInsertedTimeUnix:              now.Unix(),
 		ValueAccumulationPeriodMilliseconds: dayInMilliseconds,
 		SensorValue:                         float64(t.averageConsumptionPerMillisecond * dayInMilliseconds),
 		PacketID:                            rand.Intn(1000),
@@ -97,7 +119,7 @@ func (t *appTestSuite) TestThreeDaysAccumulationInterval() {
 	threeDaysLongRecord := &data_models.SensorValueRecord{
 		Id:                                  rand.Intn(1000),
 		BoxesSetID:                          rand.Intn(16),
-		RecordDateInUnix:                    time.Now().Unix(),
+		RecordInsertedTimeUnix:              time.Now().Unix(),
 		ValueAccumulationPeriodMilliseconds: threeDaysInMilliseconds,
 		SensorValue:                         consumed,
 		PacketID:                            rand.Intn(1000),
@@ -114,7 +136,7 @@ func (t *appTestSuite) TestWeekAccumulationInterval() {
 	weekLongRecord := &data_models.SensorValueRecord{
 		Id:                                  id,
 		BoxesSetID:                          rand.Intn(16),
-		RecordDateInUnix:                    time.Now().Unix(),
+		RecordInsertedTimeUnix:              time.Now().Unix(),
 		ValueAccumulationPeriodMilliseconds: weekInMilliseconds,
 		SensorValue:                         consumed,
 		PacketID:                            rand.Intn(1000),
@@ -123,9 +145,10 @@ func (t *appTestSuite) TestWeekAccumulationInterval() {
 	t.testForRecords(records)
 }
 
-// testForRecords accepts records in descending order by RecordDateInUnix
+// testForRecords accepts records in descending order by RecordInsertedTimeUnix
 func (t *appTestSuite) testForRecords(records []*data_models.SensorValueRecord) {
 	earliestRecordTimeInTruncatedUnix := t.app.getEarliestRecordTimeInTruncatedUnix(records)
+	_ = utils.UnixToKievFormat(earliestRecordTimeInTruncatedUnix, 0)
 	aggregationPeriods := data_models.NewAggregationPeriodsStorage()
 	for _, record := range records {
 		t.app.createAccumulationPeriodsAndDistributeConsumptionBetweenThem(
@@ -136,13 +159,82 @@ func (t *appTestSuite) testForRecords(records []*data_models.SensorValueRecord) 
 		)
 	}
 	aggregationPeriods.DeleteEmptyPeriods()
-
+	var foundAggregationPeriodForStart, foundAggregationPeriodForEnd bool
 	for _, record := range records {
-		matched := false
+		foundAggregationPeriodForStart = false
+		foundAggregationPeriodForEnd = false
+		AggregationPeriodDataForRecordAccumulationStart, AggregationPeriodDataForRecordAccumulationEnd :=
+			t.createExpectedIntervalsForRecord(record)
 		iterator := aggregationPeriods.Iter()
 		for iterator.HasNext() {
 			aggregationPeriod := iterator.GetAggregationPeriod()
 
+			if !foundAggregationPeriodForStart {
+				if aggregationPeriod.Data.Equal(AggregationPeriodDataForRecordAccumulationStart) {
+					foundAggregationPeriodForStart = true
+				}
+			}
+
+			if !foundAggregationPeriodForEnd {
+				if aggregationPeriod.Data.Equal(AggregationPeriodDataForRecordAccumulationEnd) {
+					foundAggregationPeriodForEnd = true
+					if foundAggregationPeriodForStart {
+						break
+					}
+					continue
+
+				}
+			}
 		}
+		t.r.True(foundAggregationPeriodForStart, "aggregation interval for period start was not found")
+		t.r.True(foundAggregationPeriodForEnd, "aggregation interval for period end was not found")
 	}
+}
+
+func (t *appTestSuite) createExpectedIntervalsForRecord(
+	record *data_models.SensorValueRecord,
+) (*data_models.AggregationPeriodData, *data_models.AggregationPeriodData) {
+
+	recordAccumulationStartUnix :=
+		record.RecordInsertedTimeUnix - record.ValueAccumulationPeriodMilliseconds/millisecond
+	expectedRecordAccumulationStartAggregationIntervalStart :=
+		truncateToHourUnix(recordAccumulationStartUnix, 0)
+	expectedRecordAccumulationStartAggregationIntervalEnd :=
+		expectedRecordAccumulationStartAggregationIntervalStart + t.aggregationIntervalSeconds
+
+	expectedAggregationIntervalForRecordStart := &data_models.AggregationPeriodData{
+		BoxesSetID: record.BoxesSetID,
+		StartUnix:  expectedRecordAccumulationStartAggregationIntervalStart,
+		EndUnix:    expectedRecordAccumulationStartAggregationIntervalEnd,
+	}
+
+	expectedRecordAccumulationEndAggregationIntervalStart :=
+		truncateToHourUnix(record.RecordInsertedTimeUnix, 0)
+	expectedRecordAccumulationEndAggregationIntervalEnd :=
+		expectedRecordAccumulationEndAggregationIntervalStart + t.aggregationIntervalSeconds
+
+	expectedAggregationIntervalForRecordEnd := &data_models.AggregationPeriodData{
+		BoxesSetID: record.BoxesSetID,
+		StartUnix:  expectedRecordAccumulationEndAggregationIntervalStart,
+		EndUnix:    expectedRecordAccumulationEndAggregationIntervalEnd,
+	}
+	return expectedAggregationIntervalForRecordStart, expectedAggregationIntervalForRecordEnd
+}
+
+func (t *appTestSuite) generateRandomAccumulationInterval() int64 {
+	rand.Seed(time.Now().UnixNano())
+	probability := rand.Intn(101)
+	if probability < 70 { // 70% chance
+		return 30 * second * millisecond
+	}
+	if probability < 90 { // 30% chance
+		return (rand.Int63n(4) + 1) * minuteInSeconds * millisecond
+	}
+	if probability < 98 { // 15% chance
+		return (rand.Int63n(3)+1)*hourInSeconds*millisecond +
+			(rand.Int63n(10) * minuteInSeconds * millisecond)
+	}
+	// 5% chance
+	return (rand.Int63n(10) + 10) * hourInSeconds * millisecond
+
 }
