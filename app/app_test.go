@@ -34,7 +34,8 @@ type appTestSuite struct {
 func (t *appTestSuite) SetupTest() {
 	rand.Seed(time.Now().Unix())
 	t.r = t.Require()
-	// 400 - PC consumption Watt 23 - PC`s count in r class  9 * hourInSeconds - working dayInSeconds length in seconds 7 - days in weekInSeconds
+	// 400 - PC consumption Watt 23 - PC`s count in a class  9 * hourInSeconds - working dayInSeconds
+	// length in seconds 7 - days in weekInSeconds
 	t.averageConsumptionPerMillisecond = 400 * 23 / millisecond
 	t.aggregationIntervalSeconds = hourInSeconds
 	t.app = CreateApp()
@@ -59,6 +60,41 @@ func (t *appTestSuite) TestRealLifeSet() {
 		timeIn -= accumulationPeriod / millisecond
 	}
 	t.testForRecords(records)
+}
+
+func (t *appTestSuite) TestTwoIntervalsCreatedForAlmostRoundTimeInserted() {
+	timeIn := time.Unix(truncateToHourUnix(time.Now().Unix(), 0), 0)
+	timeIn = timeIn.Add(time.Second * 3)
+	smallAccumulationPeriod := 10 * second * millisecond
+
+	var records []*data_models.SensorValueRecord
+	record := &data_models.SensorValueRecord{
+		Id:                                  0,
+		BoxesSetID:                          rand.Intn(32),
+		RecordInsertedTimeUnix:              timeIn.Unix(),
+		ValueAccumulationPeriodMilliseconds: smallAccumulationPeriod,
+		SensorValue:                         float64(t.averageConsumptionPerMillisecond * smallAccumulationPeriod),
+		PacketID:                            rand.Intn(1000),
+	}
+	records = append(records, record)
+	aggregationPeriods := data_models.NewAggregationPeriodsStorage()
+	earliestRecordTimeInTruncatedUnix := t.app.getEarliestRecordTimeInTruncatedUnix(records)
+	_ = utils.UnixToKievFormat(earliestRecordTimeInTruncatedUnix, 0)
+	for _, record := range records {
+		t.app.createAccumulationPeriodsAndDistributeConsumptionBetweenThem(
+			record,
+			aggregationPeriods,
+			earliestRecordTimeInTruncatedUnix,
+			t.aggregationIntervalSeconds,
+		)
+	}
+	aggregationPeriods.DeleteEmptyPeriods()
+	intervalsCount := 0
+	iterator := aggregationPeriods.Iter()
+	for iterator.HasNext() {
+		intervalsCount++
+	}
+	t.r.Equal(2, intervalsCount, "incorrect intervals count was created")
 }
 
 func (t *appTestSuite) TestSixHoursIncomingRecordsAccumulationIntervalDefault() {
@@ -148,7 +184,7 @@ func (t *appTestSuite) TestWeekAccumulationInterval() {
 // testForRecords accepts records in descending order by RecordInsertedTimeUnix
 func (t *appTestSuite) testForRecords(records []*data_models.SensorValueRecord) {
 	earliestRecordTimeInTruncatedUnix := t.app.getEarliestRecordTimeInTruncatedUnix(records)
-	_ = utils.UnixToKievFormat(earliestRecordTimeInTruncatedUnix, 0)
+
 	aggregationPeriods := data_models.NewAggregationPeriodsStorage()
 	for _, record := range records {
 		t.app.createAccumulationPeriodsAndDistributeConsumptionBetweenThem(

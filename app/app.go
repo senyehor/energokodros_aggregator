@@ -66,7 +66,7 @@ func (a *App) createAccumulationPeriodsAndDistributeConsumptionBetweenThem(
 	if tooShort {
 		return
 	}
-	_ = utils.UnixToKievFormat(earliestRecordTimeInTruncatedUnix-aggregationIntervalSeconds, 0)
+
 	aggregationPeriodData := data_models.NewAggregationPeriodData(
 		record.BoxesSetID,
 		earliestRecordTimeInTruncatedUnix-aggregationIntervalSeconds,
@@ -130,6 +130,8 @@ func (a *App) createAggregationPeriodsForAggregatedRecordData(
 		aggregationPeriodData.StartUnix += aggregationIntervalSeconds
 		aggregatedPeriods.CreatePeriodIfNotExists(aggregationPeriodData)
 	}
+	accumulationPeriod.Repr()
+	aggregationPeriodData.Repr()
 }
 
 func (a *App) distributeRecordWholeConsumptionBetweenAggregationIntervals(

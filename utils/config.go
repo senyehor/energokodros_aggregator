@@ -1,5 +1,10 @@
 package utils
 
+import (
+	log "github.com/sirupsen/logrus"
+	"os"
+)
+
 type DBConfig struct {
 	username,
 	password,
@@ -17,6 +22,10 @@ type AppConfig struct {
 func GetAppConfig() *AppConfig {
 	debug := getBoolFromEnv("APP_DEBUG")
 	aggregationIntervalMinutes := getInt64FromEnv("APP_AGGREGATION_INTERVAL")
+	if !(aggregationIntervalMinutes == 15 || aggregationIntervalMinutes == 30 || aggregationIntervalMinutes == 60) {
+		log.Error("aggregation interval should be 15 30 or 60 minutes")
+		os.Exit(1)
+	}
 	queryLimit := getInt64FromEnv("APP_QUERY_LIMIT")
 	return &AppConfig{
 		debug:                      debug,
