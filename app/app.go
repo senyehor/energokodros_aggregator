@@ -49,7 +49,6 @@ func (a *App) aggregate(latestRecords []*data_models.SensorValueRecord) bool {
 
 func (a *App) processRecords(latestRecords []*data_models.SensorValueRecord) *data_models.AggregationPeriodsStorage {
 	earliestRecordTimeInsertedTruncatedToHoursUnix := a.getEarliestRecordInsertedTimeTruncatedToHoursUnix(latestRecords)
-	_ = utils.UnixToKievFormat(earliestRecordTimeInsertedTruncatedToHoursUnix, 0)
 	aggregationPeriods := data_models.NewAggregationPeriodsStorage()
 	for _, record := range latestRecords {
 		a.createAccumulationPeriodsForRecordAndDistributeConsumptionBetweenThem(
@@ -92,6 +91,9 @@ func (a *App) updateAggregationTable(storage *data_models.AggregationPeriodsStor
 	iterator := storage.Iter()
 	for iterator.HasNext() {
 		aggregationPeriod := iterator.GetAggregationPeriod()
+
+		aggregationPeriod.CorrectTime()
+		aggregationPeriod.Repr()
 		sensorValueId, found := getCorrespondingIDForAggregationPeriod(
 			a.connection,
 			context.Background(),
