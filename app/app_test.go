@@ -45,6 +45,7 @@ func (t *appTestSuite) TestRealLifeSet() {
 	var records []*data_models.SensorValueRecord
 	id := 0
 	timeIn := time.Now().Unix()
+	// todo add guaranteed cases
 	for i := 0; i < 300; i++ {
 		rand.Seed(time.Now().UnixNano())
 		accumulationPeriod := t.generateRandomAccumulationInterval()
@@ -78,10 +79,10 @@ func (t *appTestSuite) TestTwoIntervalsCreatedForAlmostRoundTimeInserted() {
 	}
 	records = append(records, record)
 	aggregationPeriods := data_models.NewAggregationPeriodsStorage()
-	earliestRecordTimeInTruncatedUnix := t.app.getEarliestRecordTimeInTruncatedUnix(records)
+	earliestRecordTimeInTruncatedUnix := t.app.getEarliestRecordInsertedTimeTruncatedToHoursUnix(records)
 	_ = utils.UnixToKievFormat(earliestRecordTimeInTruncatedUnix, 0)
 	for _, record := range records {
-		t.app.createAccumulationPeriodsAndDistributeConsumptionBetweenThem(
+		t.app.createAccumulationPeriodsForRecordAndDistributeConsumptionBetweenThem(
 			record,
 			aggregationPeriods,
 			earliestRecordTimeInTruncatedUnix,
@@ -183,24 +184,15 @@ func (t *appTestSuite) TestWeekAccumulationInterval() {
 
 // testForRecords accepts records in descending order by RecordInsertedTimeUnix
 func (t *appTestSuite) testForRecords(records []*data_models.SensorValueRecord) {
-	earliestRecordTimeInTruncatedUnix := t.app.getEarliestRecordTimeInTruncatedUnix(records)
+	aggregationPeriods := t.app.processRecords(t.aggregationIntervalSeconds, records)
 
-	aggregationPeriods := data_models.NewAggregationPeriodsStorage()
-	for _, record := range records {
-		t.app.createAccumulationPeriodsAndDistributeConsumptionBetweenThem(
-			record,
-			aggregationPeriods,
-			earliestRecordTimeInTruncatedUnix,
-			t.aggregationIntervalSeconds,
-		)
-	}
-	aggregationPeriods.DeleteEmptyPeriods()
 	var foundAggregationPeriodForStart, foundAggregationPeriodForEnd bool
 	for _, record := range records {
 		foundAggregationPeriodForStart = false
 		foundAggregationPeriodForEnd = false
 		AggregationPeriodDataForRecordAccumulationStart, AggregationPeriodDataForRecordAccumulationEnd :=
 			t.createExpectedIntervalsForRecord(record)
+
 		iterator := aggregationPeriods.Iter()
 		for iterator.HasNext() {
 			aggregationPeriod := iterator.GetAggregationPeriod()
@@ -227,6 +219,7 @@ func (t *appTestSuite) testForRecords(records []*data_models.SensorValueRecord) 
 	}
 }
 
+// createExpectedIntervalsForRecord return expected interval start and end
 func (t *appTestSuite) createExpectedIntervalsForRecord(
 	record *data_models.SensorValueRecord,
 ) (*data_models.AggregationPeriodData, *data_models.AggregationPeriodData) {
@@ -238,22 +231,22 @@ func (t *appTestSuite) createExpectedIntervalsForRecord(
 	expectedRecordAccumulationStartAggregationIntervalEnd :=
 		expectedRecordAccumulationStartAggregationIntervalStart + t.aggregationIntervalSeconds
 
-	expectedAggregationIntervalForRecordStart := &data_models.AggregationPeriodData{
-		BoxesSetID: record.BoxesSetID,
-		StartUnix:  expectedRecordAccumulationStartAggregationIntervalStart,
-		EndUnix:    expectedRecordAccumulationStartAggregationIntervalEnd,
-	}
+	expectedAggregationIntervalForRecordStart := data_models.NewAggregationPeriodData(
+		record.BoxesSetID,
+		expectedRecordAccumulationStartAggregationIntervalStart,
+		expectedRecordAccumulationStartAggregationIntervalEnd,
+	)
 
 	expectedRecordAccumulationEndAggregationIntervalStart :=
 		truncateToHourUnix(record.RecordInsertedTimeUnix, 0)
 	expectedRecordAccumulationEndAggregationIntervalEnd :=
 		expectedRecordAccumulationEndAggregationIntervalStart + t.aggregationIntervalSeconds
 
-	expectedAggregationIntervalForRecordEnd := &data_models.AggregationPeriodData{
-		BoxesSetID: record.BoxesSetID,
-		StartUnix:  expectedRecordAccumulationEndAggregationIntervalStart,
-		EndUnix:    expectedRecordAccumulationEndAggregationIntervalEnd,
-	}
+	expectedAggregationIntervalForRecordEnd := data_models.NewAggregationPeriodData(
+		record.BoxesSetID,
+		expectedRecordAccumulationEndAggregationIntervalStart,
+		expectedRecordAccumulationEndAggregationIntervalEnd,
+	)
 	return expectedAggregationIntervalForRecordStart, expectedAggregationIntervalForRecordEnd
 }
 
