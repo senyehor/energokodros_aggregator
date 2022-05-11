@@ -1,0 +1,2 @@
+due to the fact that sensor insertion date is stored without timestamp, application works in pure
+UNIX time, only converting data at the moment of working with aggregated data table
