@@ -63,7 +63,6 @@ func getCorrespondingIDForAggregationPeriod(
 
 func deleteProcessedSensorValuesRecords(conn Connection, ctx context.Context, records []*data_models.SensorValueRecord) {
 	query := `DELETE FROM sensor_values where sensor_value_id between $1 and $2;`
-
 	_, err := conn.Exec(ctx, query, records[len(records)-1].Id, records[0].Id)
 	if err != nil {
 		log.Error("error occurred while deleting aggregated records")
@@ -77,7 +76,6 @@ func insertIntoAggregationTable(conn Connection, ctx context.Context, period *da
 		`INSERT INTO sensor_values_h
          (boxes_set_id, value_date_1, value_date_2, sensor_value)
 		 values ($1, $2, $3, $4)`
-
 	_, err := conn.Exec(
 		ctx,
 		query,
@@ -117,6 +115,7 @@ func parseRowsFromSensorValues(rows Rows, maxRecordsCount int) ([]*data_models.S
 			if err != nil {
 				return nil, errors.New("something went wrong during scanning rows")
 			}
+			// in fact, due to db using timestamps without timezone RecordInsertedTimeUnix is adf
 			record.RecordInsertedTimeUnix = timePGFormat.Time.Unix()
 			result[i] = record
 			actualRecordsCount++
@@ -137,4 +136,15 @@ func vacuumSensorsRecords(conn Connection, ctx context.Context) {
 
 func truncateToHourUnix(seconds, milliseconds int64) int64 {
 	return time.Unix(seconds, milliseconds).Truncate(time.Hour).Unix()
+}
+
+func logIntervalBeingProcessed(records []*data_models.SensorValueRecord) {
+	latestRecord := records[0]
+	earliestRecord := records[len(records)-1]
+	log.Info(
+		"processing interval from " +
+			utils.ShortTimeFormat(utils.UnixToKievFormat(earliestRecord.RecordInsertedTimeUnix, 0)) +
+			" to " +
+			utils.ShortTimeFormat(utils.UnixToKievFormat(latestRecord.RecordInsertedTimeUnix, 0)),
+	)
 }
