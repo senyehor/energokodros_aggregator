@@ -16,21 +16,25 @@ type DBConfig struct {
 type AppConfig struct {
 	debug                      bool
 	aggregationIntervalMinutes int64
-	queryLimit                 int64
+	sensorValuesQueryLimit     int64
 }
 
 func GetAppConfig() *AppConfig {
 	debug := getBoolFromEnv("APP_DEBUG")
-	aggregationIntervalMinutes := getInt64FromEnv("APP_AGGREGATION_INTERVAL")
+	aggregationIntervalMinutes := getInt64FromEnv("APP_AGGREGATION_INTERVAL_MINUTES")
 	if !(aggregationIntervalMinutes == 15 || aggregationIntervalMinutes == 30 || aggregationIntervalMinutes == 60) {
-		log.Error("aggregation interval should be 15 30 or 60 minutes")
+		log.Error("aggregation interval should be 15, 30 or 60 minutes")
 		os.Exit(1)
 	}
 	queryLimit := getInt64FromEnv("APP_QUERY_LIMIT")
+	if queryLimit < 0 {
+		log.Error("query limit cannot be below 0")
+		os.Exit(1)
+	}
 	return &AppConfig{
 		debug:                      debug,
 		aggregationIntervalMinutes: aggregationIntervalMinutes,
-		queryLimit:                 queryLimit,
+		sensorValuesQueryLimit:     queryLimit,
 	}
 }
 func GetDBConfig() *DBConfig {
@@ -49,7 +53,7 @@ func GetDBConfig() *DBConfig {
 }
 
 func (a AppConfig) QueryLimit() int {
-	return int(a.queryLimit)
+	return int(a.sensorValuesQueryLimit)
 }
 func (a AppConfig) Debug() bool {
 	return a.debug
