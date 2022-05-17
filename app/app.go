@@ -191,7 +191,6 @@ func (a *App) getLatestRecordsDateInDescending() ([]*data_models.SensorValueReco
 		os.Exit(1)
 	}
 	if len(latestRecords) == 0 {
-		log.Infof("No records in db, finishing")
 		return nil, false
 	}
 	return latestRecords, true
