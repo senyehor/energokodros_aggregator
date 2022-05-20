@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-func UnixToKievFormat(seconds, milliseconds int64) time.Time {
+func UnixToKievTZ(seconds, milliseconds int64) time.Time {
 	kiyvFormat, _ := time.LoadLocation("Europe/Kiev")
 	return time.Unix(seconds, milliseconds).In(kiyvFormat)
 }

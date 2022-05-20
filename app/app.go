@@ -90,11 +90,10 @@ func (a *App) createAccumulationPeriodsForRecordAndDistributeConsumptionBetweenT
 
 func (a *App) updateAggregationTable(storage *data_models.AggregationPeriodsStorage) {
 	iterator := storage.Iter()
+	logCreatedIntervals(iterator.First(), iterator.Last())
 	for iterator.HasNext() {
 		aggregationPeriod := iterator.GetAggregationPeriod()
-
-		aggregationPeriod.CorrectTime()
-		aggregationPeriod.Repr()
+		//aggregationPeriod.CorrectTime() todo
 		sensorValueId, found := getCorrespondingIDForAggregationPeriod(
 			a.connection,
 			context.Background(),
@@ -126,7 +125,7 @@ func (a *App) createAggregationPeriodsForAggregatedRecordData(
 	aggregationPeriodData *data_models.AggregationPeriodData,
 	accumulationPeriod *data_models.AccumulationPeriod,
 ) {
-
+	logCreatingAggregationPeriodsForAggregatedRecordData(aggregationPeriodData)
 	aggregatedPeriods.CreatePeriodIfNotExists(aggregationPeriodData)
 
 	for accumulationPeriod.EndUnix > aggregationPeriodData.EndUnix {
