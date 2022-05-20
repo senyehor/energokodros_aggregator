@@ -20,13 +20,6 @@ type AggregationPeriod struct {
 	SensorValues float64
 }
 
-func (a *AggregationPeriod) CorrectTime() {
-	// 3 hour * 60 minutes in hour * 60 seconds in minute
-	timeDeltaSecondsDueToStoringWithoutTimestamps := int64(3 * 60 * 60)
-	a.Data.StartUnix -= timeDeltaSecondsDueToStoringWithoutTimestamps
-	a.Data.EndUnix -= timeDeltaSecondsDueToStoringWithoutTimestamps
-}
-
 type AccumulationPeriod struct {
 	DurationSeconds,
 	StartUnix,
@@ -179,13 +172,23 @@ func newAggregationPeriod(aggregationPeriodData *AggregationPeriodData, sensorVa
 	}
 }
 
+func (a *AggregationPeriodData) GetStartTime() time.Time {
+	return time.Unix(a.StartUnix, 0)
+}
+func (a *AggregationPeriodData) GetEndTime() time.Time {
+	return time.Unix(a.EndUnix, 0)
+}
+
+func (s *SensorValueRecord) GetRecordTimeInserted() time.Time {
+	return time.Unix(s.RecordInsertedTimeUnix, 0)
+}
+
 func (s *SensorValueRecord) Repr() string {
 	accumulationPeriod, _ := time.ParseDuration(fmt.Sprintf("%v"+"ms", s.ValueAccumulationPeriodMilliseconds))
 	return "record date is from " +
 		utils.ShortTimeFormat(
-			utils.UnixToKievTZ(s.RecordInsertedTimeUnix-s.ValueAccumulationPeriodMilliseconds/1000,
-				0)) +
-		" to " + utils.ShortTimeFormat(utils.UnixToKievTZ(s.RecordInsertedTimeUnix, 0)) +
+			utils.UnixToKievTZ(s.RecordInsertedTimeUnix-s.ValueAccumulationPeriodMilliseconds/1000, 0)) +
+		" to " + utils.ShortTimeFormat(s.GetRecordTimeInserted()) +
 		fmt.Sprintf(" and it (%v) was accumulated during ", s.SensorValue) + accumulationPeriod.String()
 }
 func (a *AggregationPeriod) Repr() string {
@@ -204,7 +207,7 @@ func (a *AccumulationPeriod) Repr() string {
 func (a *AggregationPeriodData) Repr() string {
 	return fmt.Sprintf("boxes set id %v start %v end %v",
 		a.BoxesSetID,
-		utils.ShortTimeFormat(utils.UnixToKievTZ(a.StartUnix, 0)),
-		utils.ShortTimeFormat(utils.UnixToKievTZ(a.EndUnix, 0)),
+		utils.ShortTimeFormat(a.GetStartTime()),
+		utils.ShortTimeFormat(a.GetEndTime()),
 	)
 }
