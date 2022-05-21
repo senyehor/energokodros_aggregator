@@ -7,6 +7,7 @@ import (
 	"context"
 	log "github.com/sirupsen/logrus"
 	"os"
+	"time"
 )
 
 type App struct {
@@ -30,15 +31,6 @@ func (a *App) Aggregate() int {
 	}
 	a.VacuumSensorRecordsTable()
 	return iterationsCount
-}
-
-func (a *App) checkRecordOrderedProperly(latestRecords []*data_models.SensorValueRecord) {
-	latestRecordTimeIn := latestRecords[0].RecordInsertedTimeUnix
-	earliestRecordTimeIn := latestRecords[len(latestRecords)-1].RecordInsertedTimeUnix
-	if latestRecordTimeIn < earliestRecordTimeIn {
-		log.Error("records came in wrong order")
-		os.Exit(1)
-	}
 }
 
 func (a *App) aggregate(latestRecords []*data_models.SensorValueRecord) bool {
@@ -90,28 +82,33 @@ func (a *App) createAccumulationPeriodsForRecordAndDistributeConsumptionBetweenT
 
 func (a *App) updateAggregationTable(storage *data_models.AggregationPeriodsStorage) {
 	iterator := storage.Iter()
-	logCreatedIntervals(iterator.First(), iterator.Last())
 	for iterator.HasNext() {
 		aggregationPeriod := iterator.GetAggregationPeriod()
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+		defer cancel()
 		sensorValueId, found := getCorrespondingIDForAggregationPeriod(
 			a.connection,
-			context.Background(),
+			ctx,
 			aggregationPeriod,
 		)
+		log.Debugf("got id: %v, found %v", sensorValueId, found)
 		if found {
+			log.Debugf("found id %v, updating", sensorValueId)
 			updateAggregationTable(
 				a.connection,
 				context.Background(),
 				sensorValueId,
 				aggregationPeriod.SensorValues,
 			)
-		} else {
-			insertIntoAggregationTable(
-				a.connection,
-				context.Background(),
-				aggregationPeriod,
-			)
+			log.Debug("updated")
+			continue
 		}
+		log.Debug("not found, inserting")
+		insertIntoAggregationTable(
+			a.connection,
+			context.Background(),
+			aggregationPeriod,
+		)
 	}
 }
 
@@ -122,11 +119,8 @@ func (a *App) deleteProcessedRecords(records []*data_models.SensorValueRecord) {
 func (a *App) createAggregationPeriodsForAggregatedRecordData(
 	aggregatedPeriods *data_models.AggregationPeriodsStorage,
 	aggregationPeriodData *data_models.AggregationPeriodData,
-	accumulationPeriod *data_models.AccumulationPeriod,
-) {
-	logCreatingAggregationPeriodsForAggregatedRecordData(aggregationPeriodData)
+	accumulationPeriod *data_models.AccumulationPeriod) {
 	aggregatedPeriods.CreatePeriodIfNotExists(aggregationPeriodData)
-
 	for accumulationPeriod.EndUnix > aggregationPeriodData.EndUnix {
 		aggregationPeriodData.EndUnix += aggregationPeriodData.AggregationIntervalSeconds
 		aggregationPeriodData.StartUnix += aggregationPeriodData.AggregationIntervalSeconds
@@ -141,9 +135,9 @@ func (a *App) distributeRecordWholeConsumptionBetweenAggregationIntervals(
 
 	for accumulationPeriod.EndUnix > accumulationPeriod.StartUnix {
 		if a.checkRecordAccumulationPeriodCompletelyInAggregationInterval(aggregationPeriodData, accumulationPeriod) {
+
 			consumedDuringInterval :=
 				accumulationPeriod.AverageConsumption * (float64)(accumulationPeriod.DurationSeconds)
-
 			aggregatedPeriods.AddSensorValueForRecord(aggregationPeriodData, consumedDuringInterval)
 			break
 		} else if a.checkRecordAccumulationPeriodEndInAggregationIntervalButStartIsOut(
@@ -152,7 +146,6 @@ func (a *App) distributeRecordWholeConsumptionBetweenAggregationIntervals(
 			consumedDuringInterval := accumulationPeriod.AverageConsumption *
 				(float64)(accumulationPeriod.EndUnix-aggregationPeriodData.StartUnix)
 			aggregatedPeriods.AddSensorValueForRecord(aggregationPeriodData, consumedDuringInterval)
-
 			// make adjustments to cover remaining part of accumulation period in further iteration
 			accumulationPeriod.EndUnix = aggregationPeriodData.StartUnix
 			aggregationPeriodData.EndUnix = aggregationPeriodData.StartUnix
@@ -183,7 +176,6 @@ func (a *App) checkRecordAccumulationPeriodEndInAggregationIntervalButStartIsOut
 
 func (a *App) getLatestRecordsDateInDescending() ([]*data_models.SensorValueRecord, bool) {
 	latestRecords, err := getLatestRecords(a.connection, context.Background(), utils.GetAppConfig().QueryLimit())
-
 	if err != nil {
 		log.Error(err)
 		os.Exit(1)
@@ -200,4 +192,13 @@ func (a *App) VacuumSensorRecordsTable() {
 
 func (a *App) getEarliestRecordInsertedTimeTruncatedToHoursUnix(latestRecords []*data_models.SensorValueRecord) int64 {
 	return truncateToHourUnix(latestRecords[len(latestRecords)-1].RecordInsertedTimeUnix, 0)
+}
+
+func (a *App) checkRecordOrderedProperly(latestRecords []*data_models.SensorValueRecord) {
+	latestRecordTimeIn := latestRecords[0].RecordInsertedTimeUnix
+	earliestRecordTimeIn := latestRecords[len(latestRecords)-1].RecordInsertedTimeUnix
+	if latestRecordTimeIn < earliestRecordTimeIn {
+		log.Error("records came in wrong order")
+		os.Exit(1)
+	}
 }

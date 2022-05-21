@@ -19,6 +19,7 @@ func getLatestRecords(conn Connection, ctx context.Context, limit int) ([]*data_
 	     ORDER BY sensor_value_id DESC LIMIT $1;`
 	rows, err := conn.Query(ctx, selectLastRecordsQuery, limit)
 	if err != nil {
+		log.Debug(err)
 		return nil, errors.New("failed to get newest records")
 	}
 	result, err := parseRowsFromSensorValues(rows, limit)
@@ -42,23 +43,15 @@ func getCorrespondingIDForAggregationPeriod(
 		WHERE 
 			boxes_set_id=$1
 			and aggregation_interval_start=$2
-			and aggregation_interval_end=$3
-			order by aggregation_interval_end desc limit 1;`
+			and aggregation_interval_end=$3;`
 
 	periodStart := aggregationPeriod.Data.GetStartTime()
 	periodEnd := aggregationPeriod.Data.GetEndTime()
-
-	row := conn.QueryRow(ctx, query, aggregationPeriod.Data.BoxesSetID, periodStart, periodEnd)
 	var sensorValueId int
-
+	row := conn.QueryRow(ctx, query, aggregationPeriod.Data.BoxesSetID, periodStart, periodEnd)
 	err := row.Scan(&sensorValueId)
 	if err == pgx.ErrNoRows {
 		return 0, false
-	}
-	if err != nil {
-		log.Error("error occurred while getting sensor_values_h record")
-		log.Debug(err)
-		os.Exit(1)
 	}
 	return sensorValueId, true
 }
@@ -154,6 +147,6 @@ func logCreatedIntervals(first, last *data_models.AggregationPeriod) {
 	log.Infof("created intervals from %v to %v", first.Repr(), last.Repr())
 }
 
-func logCreatingAggregationPeriodsForAggregatedRecordData(aggregationPeriodData *data_models.AggregationPeriodData) {
-	log.Infof("creating intervals for %v", aggregationPeriodData.Repr())
+func logCreatingAggregationPeriodsForAggregatedRecordDataFailed(aggregationPeriodData *data_models.AggregationPeriodData) {
+	log.Errorf("creating intervals for %v failed", aggregationPeriodData.Repr())
 }

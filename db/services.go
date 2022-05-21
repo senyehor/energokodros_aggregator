@@ -10,6 +10,7 @@ import (
 
 func getConnection(connString string) *pgxpool.Pool {
 	config, err := pgxpool.ParseConfig(connString)
+	config.MaxConns = 64
 	if err != nil {
 		log.Error(err)
 		log.Error("Could not parse config")
