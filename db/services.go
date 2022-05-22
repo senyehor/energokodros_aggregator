@@ -3,20 +3,20 @@ package db
 import (
 	"aggregator/utils"
 	"context"
-	"github.com/jackc/pgx/v4/pgxpool"
+	"github.com/jackc/pgx/v4"
 	log "github.com/sirupsen/logrus"
 	"os"
 )
 
-func getConnection(connString string) *pgxpool.Pool {
-	config, err := pgxpool.ParseConfig(connString)
-	config.MaxConns = 64
+func getConnection(connString string) *pgx.Conn {
+	config, err := pgx.ParseConfig(connString)
 	if err != nil {
 		log.Error(err)
 		log.Error("Could not parse config")
 		os.Exit(1)
 	}
-	pool, err := pgxpool.ConnectConfig(context.Background(), config)
+
+	pool, err := pgx.ConnectConfig(context.Background(), config)
 	if err != nil {
 		log.Error(err)
 		os.Exit(1)

@@ -48,9 +48,22 @@ func getCorrespondingIDForAggregationPeriod(
 	periodStart := aggregationPeriod.Data.GetStartTime()
 	periodEnd := aggregationPeriod.Data.GetEndTime()
 	var sensorValueId int
-	row := conn.QueryRow(ctx, query, aggregationPeriod.Data.BoxesSetID, periodStart, periodEnd)
-	err := row.Scan(&sensorValueId)
-	if err == pgx.ErrNoRows {
+	rows, err := conn.Query(ctx, query, aggregationPeriod.Data.BoxesSetID, periodStart, periodEnd)
+	if err != nil {
+		log.Debug(err)
+		log.Info("something went wrong during selecting sensor_value_id from sensor_values_h")
+		os.Exit(1)
+	}
+	counter := 0
+	for rows.Next() {
+		err = rows.Scan(&sensorValueId)
+		counter++
+	}
+	if counter > 1 {
+		log.Error("found more that one sensor_values_h record for aggregation interval")
+		os.Exit(1)
+	}
+	if counter == 0 {
 		return 0, false
 	}
 	return sensorValueId, true
@@ -102,18 +115,16 @@ func parseRowsFromSensorValues(rows Rows, maxRecordsCount int) ([]*data_models.S
 	var timePGFormat pgtype.Timestamptz
 	var record *data_models.SensorValueRecord
 	actualRecordsCount := 0
-	for i := range result {
-		if rows.Next() {
-			record = &data_models.SensorValueRecord{}
-			err := rows.Scan(&record.Id, &record.BoxesSetID, &timePGFormat,
-				&record.ValueAccumulationPeriodMilliseconds, &record.SensorValue, &record.PacketID)
-			if err != nil {
-				return nil, errors.New("something went wrong during scanning rows")
-			}
-			record.RecordInsertedTimeUnix = timePGFormat.Time.Unix()
-			result[i] = record
-			actualRecordsCount++
+	for rows.Next() {
+		record = &data_models.SensorValueRecord{}
+		err := rows.Scan(&record.Id, &record.BoxesSetID, &timePGFormat,
+			&record.ValueAccumulationPeriodMilliseconds, &record.SensorValue, &record.PacketID)
+		if err != nil {
+			return nil, errors.New("something went wrong during scanning rows")
 		}
+		record.RecordInsertedTimeUnix = timePGFormat.Time.Unix()
+		result[actualRecordsCount] = record
+		actualRecordsCount++
 	}
 	return result[:actualRecordsCount], nil
 }
@@ -143,10 +154,25 @@ func logIntervalBeingProcessed(records []*data_models.SensorValueRecord) {
 	)
 }
 
-func logCreatedIntervals(first, last *data_models.AggregationPeriod) {
-	log.Infof("created intervals from %v to %v", first.Repr(), last.Repr())
+func startTransaction(conn Connection, ctx context.Context) pgx.Tx {
+	tx, err := conn.Begin(ctx)
+	if err != nil {
+		log.Debug(err)
+		log.Error("error happened while starting transaction")
+		os.Exit(1)
+	}
+	return tx
 }
 
-func logCreatingAggregationPeriodsForAggregatedRecordDataFailed(aggregationPeriodData *data_models.AggregationPeriodData) {
-	log.Errorf("creating intervals for %v failed", aggregationPeriodData.Repr())
+func commitTransaction(tx pgx.Tx) {
+	err := tx.Commit(context.Background())
+	if err != nil {
+		log.Debug(err)
+		log.Error("error happened while committing transaction")
+		os.Exit(1)
+	}
+}
+
+func logCreatedIntervals(first, last *data_models.AggregationPeriod) {
+	log.Infof("created intervals from %v to %v", first.Repr(), last.Repr())
 }

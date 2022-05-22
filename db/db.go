@@ -5,11 +5,10 @@ import (
 	"context"
 	"github.com/jackc/pgconn"
 	"github.com/jackc/pgx/v4"
-	"github.com/jackc/pgx/v4/pgxpool"
 )
 
 type DB struct {
-	conn *pgxpool.Pool
+	conn *pgx.Conn
 }
 
 func GetDB() *DB {
@@ -25,4 +24,8 @@ func (db *DB) QueryRow(ctx context.Context, sql string, args ...interface{}) pgx
 
 func (db *DB) Exec(ctx context.Context, sql string, arguments ...interface{}) (pgconn.CommandTag, error) {
 	return db.conn.Exec(ctx, sql, arguments...)
+}
+
+func (db *DB) Begin(ctx context.Context) (pgx.Tx, error) {
+	return db.conn.Begin(ctx)
 }

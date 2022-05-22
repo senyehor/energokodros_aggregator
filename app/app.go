@@ -5,9 +5,9 @@ import (
 	"aggregator/db"
 	"aggregator/utils"
 	"context"
+	"github.com/jackc/pgx/v4"
 	log "github.com/sirupsen/logrus"
 	"os"
-	"time"
 )
 
 type App struct {
@@ -33,11 +33,13 @@ func (a *App) Aggregate() int {
 	return iterationsCount
 }
 
-func (a *App) aggregate(latestRecords []*data_models.SensorValueRecord) bool {
+func (a *App) aggregate(latestRecords []*data_models.SensorValueRecord) {
 	aggregationPeriods := a.processRecords(latestRecords)
-	a.updateAggregationTable(aggregationPeriods)
-	a.deleteProcessedRecords(latestRecords)
-	return true
+	tx := startTransaction(a.connection, context.Background())
+	defer tx.Rollback(context.Background())
+	a.updateAggregationTable(aggregationPeriods, tx)
+	a.deleteProcessedRecords(latestRecords, tx)
+	commitTransaction(tx)
 }
 
 func (a *App) processRecords(latestRecords []*data_models.SensorValueRecord) *data_models.AggregationPeriodsStorage {
@@ -80,40 +82,35 @@ func (a *App) createAccumulationPeriodsForRecordAndDistributeConsumptionBetweenT
 	)
 }
 
-func (a *App) updateAggregationTable(storage *data_models.AggregationPeriodsStorage) {
+func (a *App) updateAggregationTable(storage *data_models.AggregationPeriodsStorage, tx pgx.Tx) {
 	iterator := storage.Iter()
+	logCreatedIntervals(iterator.First(), iterator.Last())
 	for iterator.HasNext() {
 		aggregationPeriod := iterator.GetAggregationPeriod()
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
-		defer cancel()
 		sensorValueId, found := getCorrespondingIDForAggregationPeriod(
 			a.connection,
-			ctx,
+			context.Background(),
 			aggregationPeriod,
 		)
-		log.Debugf("got id: %v, found %v", sensorValueId, found)
 		if found {
-			log.Debugf("found id %v, updating", sensorValueId)
 			updateAggregationTable(
-				a.connection,
+				tx,
 				context.Background(),
 				sensorValueId,
 				aggregationPeriod.SensorValues,
 			)
-			log.Debug("updated")
 			continue
 		}
-		log.Debug("not found, inserting")
 		insertIntoAggregationTable(
-			a.connection,
+			tx,
 			context.Background(),
 			aggregationPeriod,
 		)
 	}
 }
 
-func (a *App) deleteProcessedRecords(records []*data_models.SensorValueRecord) {
-	deleteProcessedSensorValuesRecords(a.connection, context.Background(), records)
+func (a *App) deleteProcessedRecords(records []*data_models.SensorValueRecord, tx pgx.Tx) {
+	deleteProcessedSensorValuesRecords(tx, context.Background(), records)
 }
 
 func (a *App) createAggregationPeriodsForAggregatedRecordData(
