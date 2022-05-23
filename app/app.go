@@ -24,7 +24,6 @@ func (a *App) Aggregate() int {
 	latestRecords, found := a.getLatestRecordsDateInDescending()
 	for found {
 		a.checkRecordOrderedProperly(latestRecords)
-		logIntervalBeingProcessed(latestRecords)
 		a.aggregate(latestRecords)
 		latestRecords, found = a.getLatestRecordsDateInDescending()
 		iterationsCount++
@@ -84,7 +83,6 @@ func (a *App) createAccumulationPeriodsForRecordAndDistributeConsumptionBetweenT
 
 func (a *App) updateAggregationTable(storage *data_models.AggregationPeriodsStorage, tx pgx.Tx) {
 	iterator := storage.Iter()
-	logCreatedIntervals(iterator.First(), iterator.Last())
 	for iterator.HasNext() {
 		aggregationPeriod := iterator.GetAggregationPeriod()
 		sensorValueId, found := getCorrespondingIDForAggregationPeriod(
