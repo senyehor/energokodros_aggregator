@@ -114,17 +114,6 @@ func (a *AggregationPeriodsStorage) AddSensorValueForRecord(data *AggregationPer
 	a.storage[a.getIndexForPeriodIfNotExistsCreate(data)].SensorValues += value
 }
 
-func (a *AggregationPeriodsStorage) DeleteEmptyPeriods() {
-	length := len(a.storage)
-	for i := 0; i < length; i++ {
-		if a.storage[i].SensorValues == 0 {
-			a.storage = append(a.storage[:i], a.storage[i+1:]...)
-			length--
-			i--
-		}
-	}
-}
-
 func (a *AggregationPeriodData) Copy() *AggregationPeriodData {
 	return NewAggregationPeriodData(
 		a.BoxesSetID,
