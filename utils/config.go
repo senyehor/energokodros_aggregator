@@ -1,8 +1,8 @@
 package utils
 
 import (
+	"errors"
 	log "github.com/sirupsen/logrus"
-	"os"
 )
 
 type DBConfig struct {
@@ -23,13 +23,14 @@ func GetAppConfig() *AppConfig {
 	debug := getBoolFromEnv("APP_DEBUG")
 	aggregationIntervalMinutes := getInt64FromEnv("APP_AGGREGATION_INTERVAL_MINUTES")
 	if !(aggregationIntervalMinutes == 15 || aggregationIntervalMinutes == 30 || aggregationIntervalMinutes == 60) {
-		log.Error("aggregation interval should be 15, 30 or 60 minutes")
-		os.Exit(1)
+		err := errors.New("aggregation interval should be 15, 30 or 60 minutes")
+		log.Error(err)
+		panic(err)
 	}
 	queryLimit := getInt64FromEnv("APP_QUERY_LIMIT")
 	if queryLimit < 0 {
-		log.Error("query limit cannot be below 0")
-		os.Exit(1)
+		err := errors.New("query limit cannot be below 0")
+		panic(err)
 	}
 	return &AppConfig{
 		debug:                      debug,

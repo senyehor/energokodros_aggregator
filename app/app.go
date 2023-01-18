@@ -5,9 +5,9 @@ import (
 	"aggregator/db"
 	"aggregator/utils"
 	"context"
+	"errors"
 	"github.com/jackc/pgx/v4"
 	log "github.com/sirupsen/logrus"
-	"os"
 )
 
 type App struct {
@@ -172,7 +172,7 @@ func (a *App) getLatestRecordsDateInDescending() ([]*data_models.SensorValueReco
 	latestRecords, err := getLatestRecords(a.connection, context.Background(), utils.GetAppConfig().QueryLimit())
 	if err != nil {
 		log.Error(err)
-		os.Exit(1)
+		panic(err)
 	}
 	if len(latestRecords) == 0 {
 		return nil, false
@@ -192,7 +192,8 @@ func (a *App) checkRecordOrderedProperly(latestRecords []*data_models.SensorValu
 	latestRecordTimeIn := latestRecords[0].RecordInsertedTimeUnix
 	earliestRecordTimeIn := latestRecords[len(latestRecords)-1].RecordInsertedTimeUnix
 	if latestRecordTimeIn < earliestRecordTimeIn {
-		log.Error("records came in wrong order")
-		os.Exit(1)
+		err := errors.New("records came in wrong order")
+		log.Error(err)
+		panic(err)
 	}
 }

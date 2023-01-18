@@ -7,7 +7,6 @@ import (
 	"github.com/jackc/pgtype"
 	"github.com/jackc/pgx/v4"
 	log "github.com/sirupsen/logrus"
-	"os"
 	"time"
 )
 
@@ -50,9 +49,9 @@ func getCorrespondingIDForAggregationPeriod(
 	var sensorValueId int
 	rows, err := conn.Query(ctx, query, aggregationPeriod.Data.BoxesSetID, periodStart, periodEnd)
 	if err != nil {
-		log.Debug(err)
+		log.Error(err)
 		log.Info("something went wrong during selecting sensor_value_id from sensor_values_h")
-		os.Exit(1)
+		panic(err)
 	}
 	counter := 0
 	for rows.Next() {
@@ -60,8 +59,9 @@ func getCorrespondingIDForAggregationPeriod(
 		counter++
 	}
 	if counter > 1 {
-		log.Error("found more that one sensor_values_h record for aggregation interval")
-		os.Exit(1)
+		err := errors.New("found more that one sensor_values_h record for aggregation interval")
+		log.Error(err)
+		panic(err)
 	}
 	if counter == 0 {
 		return 0, false
@@ -75,7 +75,7 @@ func deleteProcessedSensorValuesRecords(conn Connection, ctx context.Context, re
 	if err != nil {
 		log.Error("error occurred while deleting aggregated records")
 		log.Debug(err)
-		os.Exit(1)
+		panic(err)
 	}
 }
 
@@ -95,7 +95,7 @@ func insertIntoAggregationTable(conn Connection, ctx context.Context, period *da
 	if err != nil {
 		log.Error("error happened trying insert new aggregation period")
 		log.Debug(err)
-		os.Exit(1)
+		panic(err)
 	}
 }
 
@@ -105,7 +105,7 @@ func updateAggregationTable(conn Connection, ctx context.Context, sensorValueID 
 	if err != nil {
 		log.Error("error occurred while updating sensor_values_h record")
 		log.Debug(err)
-		os.Exit(1)
+		panic(err)
 	}
 }
 
@@ -134,7 +134,7 @@ func vacuumSensorsRecords(conn Connection, ctx context.Context) {
 	if err != nil {
 		log.Error("error happened while vacuuming sensor_values")
 		log.Debug(err)
-		os.Exit(1)
+		panic(err)
 	}
 }
 
@@ -147,7 +147,7 @@ func startTransaction(conn Connection, ctx context.Context) pgx.Tx {
 	if err != nil {
 		log.Debug(err)
 		log.Error("error happened while starting transaction")
-		os.Exit(1)
+		panic(err)
 	}
 	return tx
 }
@@ -155,8 +155,8 @@ func startTransaction(conn Connection, ctx context.Context) pgx.Tx {
 func commitTransaction(tx pgx.Tx) {
 	err := tx.Commit(context.Background())
 	if err != nil {
-		log.Debug(err)
+		log.Error(err)
 		log.Error("error happened while committing transaction")
-		os.Exit(1)
+		panic(err)
 	}
 }
