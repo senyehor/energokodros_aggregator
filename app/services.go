@@ -111,7 +111,6 @@ func updateAggregationTable(conn Connection, ctx context.Context, sensorValueID 
 
 func parseRowsFromSensorValues(rows Rows, maxRecordsCount int) ([]*data_models.SensorValueRecord, error) {
 	result := make([]*data_models.SensorValueRecord, maxRecordsCount)
-
 	var timePGFormat pgtype.Timestamptz
 	var record *data_models.SensorValueRecord
 	actualRecordsCount := 0
@@ -143,17 +142,6 @@ func truncateToHourUnix(seconds, milliseconds int64) int64 {
 	return time.Unix(seconds, milliseconds).Truncate(time.Hour).Unix()
 }
 
-func logIntervalBeingProcessed(records []*data_models.SensorValueRecord) {
-	latestRecord := records[0]
-	earliestRecord := records[len(records)-1]
-	log.Info(
-		"processing interval from " +
-			time.Unix(earliestRecord.RecordInsertedTimeUnix, 0).String() +
-			" to " +
-			time.Unix(latestRecord.RecordInsertedTimeUnix, 0).String(),
-	)
-}
-
 func startTransaction(conn Connection, ctx context.Context) pgx.Tx {
 	tx, err := conn.Begin(ctx)
 	if err != nil {
@@ -171,8 +159,4 @@ func commitTransaction(tx pgx.Tx) {
 		log.Error("error happened while committing transaction")
 		os.Exit(1)
 	}
-}
-
-func logCreatedIntervals(first, last *data_models.AggregationPeriod) {
-	log.Infof("created intervals from %v to %v", first.Repr(), last.Repr())
 }
