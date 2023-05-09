@@ -71,7 +71,6 @@ func newAggregationPeriod(aggregationPeriodData *AggregationPeriodData, sensorVa
 
 // NewAccumulationPeriod returns accumulation period and whether it was too short to create
 func NewAccumulationPeriod(record *SensorValueRecord) (*AccumulationPeriod, bool) {
-
 	accumulationPeriodSeconds := record.ValueAccumulationPeriodMilliseconds / 1000
 	// we do not care about some milliseconds left
 	if accumulationPeriodSeconds <= 0 {

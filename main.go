@@ -12,10 +12,6 @@ func main() {
 	if config.Debug() {
 		log.SetLevel(log.DebugLevel)
 	}
-	iterationsCount := 0
-	for application.Aggregate(config.AggregationIntervalMinutes() * 60) {
-		iterationsCount++
-	}
-	log.Infof("Successfully aggregated, made %v", iterationsCount)
-	application.Vacuum()
+	iterationsMade := application.Aggregate(config.AggregationIntervalMinutes() * 60)
+	log.Infof("Exiting, made %v iterations", iterationsMade)
 }
