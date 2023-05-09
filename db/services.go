@@ -1,6 +1,7 @@
 package db
 
 import (
+	"aggregator/utils"
 	"context"
 	"github.com/jackc/pgx/v4/pgxpool"
 	log "github.com/sirupsen/logrus"
@@ -22,46 +23,11 @@ func getConnection(connString string) *pgxpool.Pool {
 	return pool
 }
 
-func getDBConfig() *dbConfig {
-	username, found := os.LookupEnv("DB_USERNAME")
-	if !found {
-		log.Error("failed to get username from env")
-		os.Exit(1)
-	}
-	password, found := os.LookupEnv("DB_PASSWORD")
-	if !found {
-		log.Error("failed to get password from env")
-		os.Exit(1)
-	}
-	host, found := os.LookupEnv("DB_HOST")
-	if !found {
-		log.Error("failed to get username from env")
-		os.Exit(1)
-	}
-	port, found := os.LookupEnv("DB_PORT")
-	if !found {
-		log.Error("failed to get username from env")
-		os.Exit(1)
-	}
-	name, found := os.LookupEnv("DB_NAME")
-	if !found {
-		log.Error("failed to get username from env")
-		os.Exit(1)
-	}
-	return &dbConfig{
-		username: username,
-		password: password,
-		host:     host,
-		port:     port,
-		name:     name,
-	}
-}
-
-func composeConnectionString(config *dbConfig) string {
+func composeConnectionString(config *utils.DBConfig) string {
 	return "postgres://" +
-		config.username + ":" +
-		config.password + "@" +
-		config.host + ":" +
-		config.port +
-		"/" + config.name
+		config.Username() + ":" +
+		config.Password() + "@" +
+		config.Host() + ":" +
+		config.Port() +
+		"/" + config.Name()
 }

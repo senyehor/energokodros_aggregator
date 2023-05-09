@@ -1,6 +1,10 @@
 package db
 
 import (
+	"aggregator/utils"
+	"context"
+	"github.com/jackc/pgconn"
+	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/pgxpool"
 )
 
@@ -8,14 +12,17 @@ type DB struct {
 	conn *pgxpool.Pool
 }
 
-type dbConfig struct {
-	username,
-	password,
-	host,
-	port,
-	name string
+func GetDB() *DB {
+	return &DB{conn: getConnection(composeConnectionString(utils.GetDBConfig()))}
 }
 
-func GetDB() *DB {
-	return &DB{conn: getConnection(composeConnectionString(getDBConfig()))}
+func (db *DB) Query(ctx context.Context, sql string, args ...interface{}) (pgx.Rows, error) {
+	return db.conn.Query(ctx, sql, args...)
+}
+func (db *DB) QueryRow(ctx context.Context, sql string, args ...interface{}) pgx.Row {
+	return db.conn.QueryRow(ctx, sql, args...)
+}
+
+func (db *DB) Exec(ctx context.Context, sql string, arguments ...interface{}) (pgconn.CommandTag, error) {
+	return db.conn.Exec(ctx, sql, arguments...)
 }
