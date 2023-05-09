@@ -20,10 +20,10 @@ func CreateApp() *App {
 
 func (a *App) Aggregate(aggregationIntervalSeconds int64) int {
 	iterationsCount := 0
-	latestRecords, found := a.getLatestRecords()
+	latestRecords, found := a.getLatestRecordsDateInDescending()
 	for found {
 		a.aggregate(aggregationIntervalSeconds, latestRecords)
-		latestRecords, found = a.getLatestRecords()
+		latestRecords, found = a.getLatestRecordsDateInDescending()
 		iterationsCount++
 	}
 	a.Vacuum()
@@ -31,10 +31,7 @@ func (a *App) Aggregate(aggregationIntervalSeconds int64) int {
 }
 
 func (a *App) aggregate(aggregationIntervalSeconds int64, latestRecords []*data_models.SensorValueRecord) bool {
-	earliestRecordTimeTruncatedUnix := truncateToHourUnix(
-		latestRecords[len(latestRecords)-1].RecordDateUnix,
-		0,
-	)
+	earliestRecordTimeTruncatedUnix := a.getEarliestRecordTimeInTruncatedUnix(latestRecords)
 	// todo !!! delete after debug
 	tmp := utils.UnixToKievFormat(earliestRecordTimeTruncatedUnix, 0)
 
@@ -186,7 +183,7 @@ func (a *App) checkRecordAccumulationPeriodEndInAggregationIntervalButStartIsOut
 		(accumulationPeriod.EndUnix <= aggregationInterval.EndUnix)
 }
 
-func (a *App) getLatestRecords() ([]*data_models.SensorValueRecord, bool) {
+func (a *App) getLatestRecordsDateInDescending() ([]*data_models.SensorValueRecord, bool) {
 	latestRecords, err := getLatestRecords(a.connection, context.Background(), utils.GetAppConfig().QueryLimit())
 
 	if err != nil {
@@ -202,4 +199,8 @@ func (a *App) getLatestRecords() ([]*data_models.SensorValueRecord, bool) {
 
 func (a *App) Vacuum() {
 	vacuumSensorsRecords(a.connection, context.Background())
+}
+
+func (a *App) getEarliestRecordTimeInTruncatedUnix(latestRecords []*data_models.SensorValueRecord) int64 {
+	return truncateToHourUnix(latestRecords[len(latestRecords)-1].RecordDateUnix, 0)
 }
