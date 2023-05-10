@@ -14,7 +14,7 @@ func UnixToKievFormat(seconds, milliseconds int64) time.Time {
 }
 
 func ShortTimeFormat(t time.Time) string {
-	return t.Format("01-02 15:04")
+	return t.Format("01-02 15:04.05")
 }
 
 func getValueFromEnv(key string) string {

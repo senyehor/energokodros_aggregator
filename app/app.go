@@ -5,7 +5,6 @@ import (
 	"aggregator/db"
 	"aggregator/utils"
 	"context"
-	"fmt"
 	log "github.com/sirupsen/logrus"
 	"os"
 )
@@ -21,7 +20,12 @@ func CreateApp() *App {
 func (a *App) Aggregate(aggregationIntervalSeconds int64) int {
 	iterationsCount := 0
 	latestRecords, found := a.getLatestRecordsDateInDescending()
+
 	for found {
+		if latestRecords[0].RecordDateInUnix < latestRecords[len(latestRecords)-1].RecordDateInUnix {
+			log.Error("records came in wrong order")
+			os.Exit(1)
+		}
 		a.aggregate(aggregationIntervalSeconds, latestRecords)
 		latestRecords, found = a.getLatestRecordsDateInDescending()
 		iterationsCount++
@@ -32,8 +36,6 @@ func (a *App) Aggregate(aggregationIntervalSeconds int64) int {
 
 func (a *App) aggregate(aggregationIntervalSeconds int64, latestRecords []*data_models.SensorValueRecord) bool {
 	earliestRecordTimeTruncatedUnix := a.getEarliestRecordTimeInTruncatedUnix(latestRecords)
-	// todo !!! delete after debug
-	tmp := utils.UnixToKievFormat(earliestRecordTimeTruncatedUnix, 0)
 
 	aggregationPeriods := data_models.NewAggregationPeriodsStorage()
 
@@ -45,32 +47,30 @@ func (a *App) aggregate(aggregationIntervalSeconds int64, latestRecords []*data_
 			aggregationIntervalSeconds,
 		)
 	}
-	// todo !!!! delete after debug
-	latestRecords[0].Repr()
+
 	aggregationPeriods.DeleteEmptyPeriods()
 
 	a.updateAggregationTable(aggregationPeriods)
 
 	a.deleteAggregatedRecords(latestRecords)
-	// todo !!!! delete after debug
-	fmt.Println(tmp)
 	return true
 }
 
 func (a *App) createAccumulationPeriodsAndDistributeConsumptionBetweenThem(
 	record *data_models.SensorValueRecord,
 	aggregationPeriods *data_models.AggregationPeriodsStorage,
-	earliestRecordTimeTruncatedUnix,
+	earliestRecordTimeInTruncatedUnix,
 	aggregationIntervalSeconds int64,
 ) {
 	accumulationPeriod, tooShort := data_models.NewAccumulationPeriod(record)
 	if tooShort {
 		return
 	}
+	_ = utils.UnixToKievFormat(earliestRecordTimeInTruncatedUnix-aggregationIntervalSeconds, 0)
 	aggregationPeriodData := data_models.NewAggregationPeriodData(
 		record.BoxesSetID,
-		earliestRecordTimeTruncatedUnix-aggregationIntervalSeconds,
-		earliestRecordTimeTruncatedUnix,
+		earliestRecordTimeInTruncatedUnix-aggregationIntervalSeconds,
+		earliestRecordTimeInTruncatedUnix,
 	)
 	a.createAggregationPeriodsForAggregatedRecordData(
 		aggregationPeriods,
@@ -78,38 +78,35 @@ func (a *App) createAccumulationPeriodsAndDistributeConsumptionBetweenThem(
 		accumulationPeriod,
 		aggregationIntervalSeconds,
 	)
-	// todo !!!! delete after debug
-	aggregationPeriods.Storage[0].Repr()
 	a.distributeRecordWholeConsumptionBetweenAggregationIntervals(
 		accumulationPeriod,
 		aggregationPeriodData,
 		aggregationPeriods,
 		aggregationIntervalSeconds,
 	)
-	// todo !!!! delete after debug
-	accumulationPeriod.Repr()
 }
 
 func (a *App) updateAggregationTable(storage *data_models.AggregationPeriodsStorage) {
-	// todo possibly make iterator
-	for _, aggregatedPeriod := range storage.Storage {
+	iterator := storage.Iter()
+	for iterator.HasNext() {
+		aggregationPeriod := iterator.GetAggregationPeriod()
 		sensorValueId, found := getCorrespondingIDForAggregationPeriod(
 			a.connection,
 			context.Background(),
-			aggregatedPeriod,
+			aggregationPeriod,
 		)
 		if found {
 			updateAggregationTable(
 				a.connection,
 				context.Background(),
 				sensorValueId,
-				aggregatedPeriod.SensorValues,
+				aggregationPeriod.SensorValues,
 			)
 		} else {
 			insertIntoAggregationTable(
 				a.connection,
 				context.Background(),
-				aggregatedPeriod,
+				aggregationPeriod,
 			)
 		}
 	}
@@ -126,12 +123,12 @@ func (a *App) createAggregationPeriodsForAggregatedRecordData(
 	aggregationIntervalSeconds int64,
 ) {
 
-	_ = aggregatedPeriods.GetIndexForPeriodOrCreate(aggregationPeriodData)
+	aggregatedPeriods.CreatePeriodIfNotExists(aggregationPeriodData)
 
 	for accumulationPeriod.EndUnix > aggregationPeriodData.EndUnix {
 		aggregationPeriodData.EndUnix += aggregationIntervalSeconds
 		aggregationPeriodData.StartUnix += aggregationIntervalSeconds
-		_ = aggregatedPeriods.GetIndexForPeriodOrCreate(aggregationPeriodData)
+		aggregatedPeriods.CreatePeriodIfNotExists(aggregationPeriodData)
 	}
 }
 
@@ -202,5 +199,5 @@ func (a *App) Vacuum() {
 }
 
 func (a *App) getEarliestRecordTimeInTruncatedUnix(latestRecords []*data_models.SensorValueRecord) int64 {
-	return truncateToHourUnix(latestRecords[len(latestRecords)-1].RecordDateUnix, 0)
+	return truncateToHourUnix(latestRecords[len(latestRecords)-1].RecordDateInUnix, 0)
 }

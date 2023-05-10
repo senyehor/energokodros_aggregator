@@ -12,6 +12,7 @@ func main() {
 	if config.Debug() {
 		log.SetLevel(log.DebugLevel)
 	}
+	// todo 60 % interval
 	iterationsMade := application.Aggregate(config.AggregationIntervalMinutes() * 60)
 	log.Infof("Exiting, made %v iterations", iterationsMade)
 }

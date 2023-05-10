@@ -9,7 +9,7 @@ import (
 type SensorValueRecord struct {
 	Id                                  int
 	BoxesSetID                          int
-	RecordDateUnix                      int64
+	RecordDateInUnix                    int64
 	ValueAccumulationPeriodMilliseconds int64
 	SensorValue                         float64
 	PacketID                            int
@@ -34,17 +34,59 @@ type AggregationPeriodData struct {
 }
 
 type AggregationPeriodsStorage struct {
-	Storage []*AggregationPeriod
+	storage []*AggregationPeriod
 }
 
-func (a *AggregationPeriodsStorage) GetIndexForPeriodOrCreate(aggregationPeriodData *AggregationPeriodData) int {
-	for index, record := range a.Storage {
+type AggregationPeriodsIterator struct {
+	aggregationPeriods       []*AggregationPeriod
+	length                   int
+	currentAggregationPeriod *AggregationPeriod
+	iterationsCount          int
+}
+
+func (a *AggregationPeriodsIterator) HasNext() bool {
+	if a.iterationsCount == a.length {
+		return false
+	}
+	a.currentAggregationPeriod = a.aggregationPeriods[a.iterationsCount]
+	a.iterationsCount++
+	return true
+}
+
+func (a *AggregationPeriodsIterator) GetAggregationPeriod() *AggregationPeriod {
+	a.checkIterationStarted()
+	return a.currentAggregationPeriod
+}
+
+func (a *AggregationPeriodsIterator) checkIterationStarted() {
+	if a.iterationsCount == 0 {
+		panic("HasNext method of iterator was not called")
+	}
+}
+
+func (a *AggregationPeriodsStorage) Iter() *AggregationPeriodsIterator {
+	return &AggregationPeriodsIterator{
+		aggregationPeriods:       a.storage,
+		length:                   len(a.storage),
+		currentAggregationPeriod: nil,
+		iterationsCount:          0,
+	}
+}
+
+func (a *AggregationPeriodsStorage) CreatePeriodIfNotExists(aggregationPeriodData *AggregationPeriodData) {
+	a.getIndexForPeriodIfNotExistsCreate(aggregationPeriodData)
+}
+
+func (a *AggregationPeriodsStorage) getIndexForPeriodIfNotExistsCreate(
+	aggregationPeriodData *AggregationPeriodData) int {
+
+	for index, record := range a.storage {
 		if a.checkRecordMatches(record, aggregationPeriodData) {
 			return index
 		}
 	}
-	a.Storage = append(a.Storage, newAggregationPeriod(aggregationPeriodData, 0))
-	return len(a.Storage) - 1
+	a.storage = append(a.storage, newAggregationPeriod(aggregationPeriodData, 0))
+	return len(a.storage) - 1
 }
 
 func (a *AggregationPeriodsStorage) checkRecordMatches(
@@ -56,14 +98,14 @@ func (a *AggregationPeriodsStorage) checkRecordMatches(
 }
 
 func (a *AggregationPeriodsStorage) AddSensorValueForRecord(data *AggregationPeriodData, value float64) {
-	a.Storage[a.GetIndexForPeriodOrCreate(data)].SensorValues += value
+	a.storage[a.getIndexForPeriodIfNotExistsCreate(data)].SensorValues += value
 }
 
 func (a *AggregationPeriodsStorage) DeleteEmptyPeriods() {
-	length := len(a.Storage)
+	length := len(a.storage)
 	for i := 0; i < length; i++ {
-		if a.Storage[i].SensorValues == 0 {
-			a.Storage = append(a.Storage[:i], a.Storage[i+1:]...)
+		if a.storage[i].SensorValues == 0 {
+			a.storage = append(a.storage[:i], a.storage[i+1:]...)
 			length--
 			i--
 		}
@@ -85,8 +127,8 @@ func NewAccumulationPeriod(record *SensorValueRecord) (*AccumulationPeriod, bool
 	if accumulationPeriodSeconds <= 0 {
 		return nil, true
 	}
-	accumulationPeriodStart := record.RecordDateUnix - accumulationPeriodSeconds
-	accumulationPeriodEnd := record.RecordDateUnix
+	accumulationPeriodStart := record.RecordDateInUnix - accumulationPeriodSeconds
+	accumulationPeriodEnd := record.RecordDateInUnix
 	averageConsumption := record.SensorValue / (float64)(accumulationPeriodSeconds)
 
 	return &AccumulationPeriod{
@@ -108,7 +150,7 @@ func NewAggregationPeriodData(boxesSetID int, aggregationPeriodStartUnix int64,
 }
 
 func NewAggregationPeriodsStorage() *AggregationPeriodsStorage {
-	return &AggregationPeriodsStorage{Storage: []*AggregationPeriod{}}
+	return &AggregationPeriodsStorage{storage: []*AggregationPeriod{}}
 }
 func newAggregationPeriod(aggregationPeriodData *AggregationPeriodData, sensorValue float64) *AggregationPeriod {
 	return &AggregationPeriod{
@@ -121,9 +163,9 @@ func (s *SensorValueRecord) Repr() string {
 	accumulationPeriod, _ := time.ParseDuration(fmt.Sprintf("%v"+"ms", s.ValueAccumulationPeriodMilliseconds))
 	return "record date is from " +
 		utils.ShortTimeFormat(
-			utils.UnixToKievFormat(s.RecordDateUnix-s.ValueAccumulationPeriodMilliseconds/1000,
+			utils.UnixToKievFormat(s.RecordDateInUnix-s.ValueAccumulationPeriodMilliseconds/1000,
 				0)) +
-		" to " + utils.ShortTimeFormat(utils.UnixToKievFormat(s.RecordDateUnix, 0)) +
+		" to " + utils.ShortTimeFormat(utils.UnixToKievFormat(s.RecordDateInUnix, 0)) +
 		fmt.Sprintf(" and it (%v) was accumulated during ", s.SensorValue) + accumulationPeriod.String()
 }
 func (a *AggregationPeriod) Repr() string {
