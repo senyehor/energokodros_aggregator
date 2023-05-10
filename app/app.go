@@ -22,7 +22,7 @@ func (a *App) Aggregate(aggregationIntervalSeconds int64) int {
 	latestRecords, found := a.getLatestRecordsDateInDescending()
 
 	for found {
-		if latestRecords[0].RecordDateInUnix < latestRecords[len(latestRecords)-1].RecordDateInUnix {
+		if latestRecords[0].RecordInsertedTimeUnix < latestRecords[len(latestRecords)-1].RecordInsertedTimeUnix {
 			log.Error("records came in wrong order")
 			os.Exit(1)
 		}
@@ -199,5 +199,5 @@ func (a *App) Vacuum() {
 }
 
 func (a *App) getEarliestRecordTimeInTruncatedUnix(latestRecords []*data_models.SensorValueRecord) int64 {
-	return truncateToHourUnix(latestRecords[len(latestRecords)-1].RecordDateInUnix, 0)
+	return truncateToHourUnix(latestRecords[len(latestRecords)-1].RecordInsertedTimeUnix, 0)
 }
