@@ -41,14 +41,24 @@ func (t *appTestSuite) SetupTest() {
 	t.app = CreateApp(utils.GetAppConfig())
 }
 
-func (t *appTestSuite) TestRealLifeSet() {
+func (t *appTestSuite) TestRealLifeRecordsSet() {
 	var records []*data_models.SensorValueRecord
 	id := 0
 	timeIn := time.Now().Unix()
-	// todo add guaranteed cases
+
 	for i := 0; i < 300; i++ {
 		rand.Seed(time.Now().UnixNano())
 		accumulationPeriod := t.generateRandomAccumulationInterval()
+		// creating guaranteed cases
+		if i > 20 && i < 30 {
+			accumulationPeriod = 30 * second * millisecond
+		}
+		if i > 100 && i < 105 {
+			accumulationPeriod = hourInSeconds * millisecond
+		}
+		if i > 200 && i < 202 {
+			accumulationPeriod = dayInSeconds * millisecond
+		}
 		record := &data_models.SensorValueRecord{
 			Id:                                  id,
 			BoxesSetID:                          rand.Intn(32),
