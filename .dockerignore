@@ -1,0 +1,12 @@
+bin/
+.dockerignore
+docker-compose.yml
+.dockerfile
+.gitignore
+.git/
+.idea/
+*test*.go
+*.env
+envs.d
+readme
+go.*
