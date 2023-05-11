@@ -28,15 +28,17 @@ type AccumulationPeriod struct {
 }
 
 type AggregationPeriodData struct {
-	BoxesSetID int
-	StartUnix  int64
-	EndUnix    int64
+	BoxesSetID                 int
+	StartUnix                  int64
+	EndUnix                    int64
+	AggregationIntervalSeconds int64
 }
 
 func (a *AggregationPeriodData) Equal(other *AggregationPeriodData) bool {
 	return a.StartUnix == other.StartUnix &&
 		a.EndUnix == other.EndUnix &&
-		a.BoxesSetID == other.BoxesSetID
+		a.BoxesSetID == other.BoxesSetID &&
+		a.AggregationIntervalSeconds == other.AggregationIntervalSeconds
 }
 
 type AggregationPeriodsStorage struct {
@@ -116,11 +118,11 @@ func (a *AggregationPeriodsStorage) DeleteEmptyPeriods() {
 }
 
 func (a *AggregationPeriodData) Copy() *AggregationPeriodData {
-	return &AggregationPeriodData{
-		BoxesSetID: a.BoxesSetID,
-		StartUnix:  a.StartUnix,
-		EndUnix:    a.EndUnix,
-	}
+	return NewAggregationPeriodData(
+		a.BoxesSetID,
+		a.EndUnix,
+		a.AggregationIntervalSeconds,
+	)
 }
 
 // NewAccumulationPeriod returns accumulation period and whether it was too short to create
@@ -142,13 +144,13 @@ func NewAccumulationPeriod(record *SensorValueRecord) (*AccumulationPeriod, bool
 	}, false
 }
 
-func NewAggregationPeriodData(boxesSetID int, aggregationPeriodStartUnix int64,
-	aggregationPeriodEndUnix int64) *AggregationPeriodData {
-
+func NewAggregationPeriodData(boxesSetID int, aggregationPeriodEndUnix int64, aggregationIntervalSecondsUnix int64,
+) *AggregationPeriodData {
 	return &AggregationPeriodData{
-		BoxesSetID: boxesSetID,
-		StartUnix:  aggregationPeriodStartUnix,
-		EndUnix:    aggregationPeriodEndUnix,
+		BoxesSetID:                 boxesSetID,
+		StartUnix:                  aggregationPeriodEndUnix - aggregationIntervalSecondsUnix,
+		EndUnix:                    aggregationPeriodEndUnix,
+		AggregationIntervalSeconds: aggregationIntervalSecondsUnix,
 	}
 }
 

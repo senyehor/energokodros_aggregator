@@ -7,12 +7,12 @@ import (
 )
 
 func main() {
-	application := app.CreateApp()
 	config := utils.GetAppConfig()
 	if config.Debug() {
 		log.SetLevel(log.DebugLevel)
 	}
+	application := app.CreateApp(config)
 	// todo 60 % interval
-	iterationsMade := application.Aggregate(config.AggregationIntervalMinutes() * 60)
+	iterationsMade := application.Aggregate()
 	log.Infof("Exiting, made %v iterations", iterationsMade)
 }

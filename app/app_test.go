@@ -2,6 +2,7 @@ package app
 
 import (
 	"aggregator/data_models"
+	"aggregator/utils"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"math/rand"
@@ -37,7 +38,7 @@ func (t *appTestSuite) SetupTest() {
 	// length in seconds 7 - days in weekInSeconds
 	t.averageConsumptionPerMillisecond = 400 * 23 / millisecond
 	t.aggregationIntervalSeconds = hourInSeconds
-	t.app = CreateApp()
+	t.app = CreateApp(utils.GetAppConfig())
 }
 
 func (t *appTestSuite) TestRealLifeSet() {
@@ -77,7 +78,7 @@ func (t *appTestSuite) TestTwoIntervalsCreatedForAlmostRoundTimeInserted() {
 		PacketID:                            rand.Intn(1000),
 	}
 	records = append(records, record)
-	aggregationPeriods := t.app.processRecords(t.aggregationIntervalSeconds, records)
+	aggregationPeriods := t.app.processRecords(records)
 	intervalsCount := 0
 	iterator := aggregationPeriods.Iter()
 	for iterator.HasNext() {
@@ -172,7 +173,7 @@ func (t *appTestSuite) TestWeekAccumulationInterval() {
 
 // testForRecords accepts records in descending order by RecordInsertedTimeUnix
 func (t *appTestSuite) testForRecords(records []*data_models.SensorValueRecord) {
-	aggregationPeriods := t.app.processRecords(t.aggregationIntervalSeconds, records)
+	aggregationPeriods := t.app.processRecords(records)
 
 	var foundAggregationPeriodForStart, foundAggregationPeriodForEnd bool
 	for _, record := range records {
@@ -221,8 +222,8 @@ func (t *appTestSuite) createExpectedIntervalsForRecord(
 
 	expectedAggregationIntervalForRecordStart := data_models.NewAggregationPeriodData(
 		record.BoxesSetID,
-		expectedRecordAccumulationStartAggregationIntervalStart,
 		expectedRecordAccumulationStartAggregationIntervalEnd,
+		t.app.aggregationIntervalSeconds,
 	)
 
 	expectedRecordAccumulationEndAggregationIntervalStart :=
@@ -232,8 +233,8 @@ func (t *appTestSuite) createExpectedIntervalsForRecord(
 
 	expectedAggregationIntervalForRecordEnd := data_models.NewAggregationPeriodData(
 		record.BoxesSetID,
-		expectedRecordAccumulationEndAggregationIntervalStart,
 		expectedRecordAccumulationEndAggregationIntervalEnd,
+		t.app.aggregationIntervalSeconds,
 	)
 	return expectedAggregationIntervalForRecordStart, expectedAggregationIntervalForRecordEnd
 }
@@ -253,5 +254,4 @@ func (t *appTestSuite) generateRandomAccumulationInterval() int64 {
 	}
 	// 5% chance
 	return (rand.Int63n(10) + 10) * hourInSeconds * millisecond
-
 }
