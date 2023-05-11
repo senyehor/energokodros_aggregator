@@ -42,14 +42,14 @@ func (a *App) checkRecordOrderedProperly(latestRecords []*data_models.SensorValu
 
 func (a *App) aggregate(latestRecords []*data_models.SensorValueRecord) bool {
 	aggregationPeriods := a.processRecords(latestRecords)
-	a.updateAggregationTable(aggregationPeriods)
 	a.deleteProcessedRecords(latestRecords)
+	a.updateAggregationTable(aggregationPeriods)
 	return true
 }
 
 func (a *App) processRecords(latestRecords []*data_models.SensorValueRecord) *data_models.AggregationPeriodsStorage {
-
 	earliestRecordTimeInsertedTruncatedToHoursUnix := a.getEarliestRecordInsertedTimeTruncatedToHoursUnix(latestRecords)
+	_ = utils.UnixToKievFormat(earliestRecordTimeInsertedTruncatedToHoursUnix, 0)
 	aggregationPeriods := data_models.NewAggregationPeriodsStorage()
 	for _, record := range latestRecords {
 		a.createAccumulationPeriodsForRecordAndDistributeConsumptionBetweenThem(

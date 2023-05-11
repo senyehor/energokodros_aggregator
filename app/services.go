@@ -106,7 +106,7 @@ func updateAggregationTable(conn Connection, ctx context.Context, sensorValueID 
 func parseRowsFromSensorValues(rows Rows, maxRecordsCount int) ([]*data_models.SensorValueRecord, error) {
 	result := make([]*data_models.SensorValueRecord, maxRecordsCount)
 
-	var timePGFormat pgtype.Timestamp
+	var timePGFormat pgtype.Timestamptz
 	var record *data_models.SensorValueRecord
 	actualRecordsCount := 0
 	for i := range result {
@@ -120,6 +120,7 @@ func parseRowsFromSensorValues(rows Rows, maxRecordsCount int) ([]*data_models.S
 			record.RecordInsertedTimeUnix = timePGFormat.Time.Unix()
 			result[i] = record
 			actualRecordsCount++
+			record.Repr()
 		}
 	}
 	return result[:actualRecordsCount], nil

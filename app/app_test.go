@@ -98,23 +98,23 @@ func (t *appTestSuite) TestTwoIntervalsCreatedForAlmostRoundTimeInserted() {
 }
 
 func (t *appTestSuite) TestSixHoursIncomingRecordsAccumulationIntervalDefault() {
-	startTime := time.Now().Unix()
+	earliestRecordTime := time.Now().Unix()
 	defaultInterval := 30 * second
-	endTime := startTime + 6*hourInSeconds
+	recordTime := earliestRecordTime + 6*hourInSeconds
 	var records []*data_models.SensorValueRecord
 	id := 0
-	for startTime != endTime {
+	for earliestRecordTime != recordTime {
 		accumulationPeriod := 30 * second * millisecond
 		record := &data_models.SensorValueRecord{
 			Id:                                  id,
 			BoxesSetID:                          (id % 16) + 1,
-			RecordInsertedTimeUnix:              endTime,
+			RecordInsertedTimeUnix:              recordTime,
 			ValueAccumulationPeriodMilliseconds: accumulationPeriod,
 			SensorValue:                         float64(t.averageConsumptionPerMillisecond * accumulationPeriod),
 			PacketID:                            rand.Intn(1000),
 		}
 		records = append(records, record)
-		endTime -= defaultInterval
+		recordTime -= defaultInterval
 		id++
 	}
 	t.testForRecords(records)
