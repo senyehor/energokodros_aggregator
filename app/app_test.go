@@ -2,7 +2,6 @@ package app
 
 import (
 	"aggregator/data_models"
-	"aggregator/utils"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"math/rand"
@@ -78,18 +77,7 @@ func (t *appTestSuite) TestTwoIntervalsCreatedForAlmostRoundTimeInserted() {
 		PacketID:                            rand.Intn(1000),
 	}
 	records = append(records, record)
-	aggregationPeriods := data_models.NewAggregationPeriodsStorage()
-	earliestRecordTimeInTruncatedUnix := t.app.getEarliestRecordInsertedTimeTruncatedToHoursUnix(records)
-	_ = utils.UnixToKievFormat(earliestRecordTimeInTruncatedUnix, 0)
-	for _, record := range records {
-		t.app.createAccumulationPeriodsForRecordAndDistributeConsumptionBetweenThem(
-			record,
-			aggregationPeriods,
-			earliestRecordTimeInTruncatedUnix,
-			t.aggregationIntervalSeconds,
-		)
-	}
-	aggregationPeriods.DeleteEmptyPeriods()
+	aggregationPeriods := t.app.processRecords(t.aggregationIntervalSeconds, records)
 	intervalsCount := 0
 	iterator := aggregationPeriods.Iter()
 	for iterator.HasNext() {
@@ -154,7 +142,7 @@ func (t *appTestSuite) TestThreeDaysAccumulationInterval() {
 	consumed := float64(threeDaysInMilliseconds * t.averageConsumptionPerMillisecond)
 	var records []*data_models.SensorValueRecord
 	threeDaysLongRecord := &data_models.SensorValueRecord{
-		Id:                                  rand.Intn(1000),
+		Id:                                  0,
 		BoxesSetID:                          rand.Intn(16),
 		RecordInsertedTimeUnix:              time.Now().Unix(),
 		ValueAccumulationPeriodMilliseconds: threeDaysInMilliseconds,
