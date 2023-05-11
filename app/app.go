@@ -20,43 +20,50 @@ func CreateApp() *App {
 func (a *App) Aggregate(aggregationIntervalSeconds int64) int {
 	iterationsCount := 0
 	latestRecords, found := a.getLatestRecordsDateInDescending()
-
 	for found {
-		if latestRecords[0].RecordInsertedTimeUnix < latestRecords[len(latestRecords)-1].RecordInsertedTimeUnix {
-			log.Error("records came in wrong order")
-			os.Exit(1)
-		}
+		a.checkRecordOrderedProperly(latestRecords)
 		a.aggregate(aggregationIntervalSeconds, latestRecords)
 		latestRecords, found = a.getLatestRecordsDateInDescending()
 		iterationsCount++
 	}
-	a.Vacuum()
+	a.VacuumSensorRecordsTable()
 	return iterationsCount
 }
 
-func (a *App) aggregate(aggregationIntervalSeconds int64, latestRecords []*data_models.SensorValueRecord) bool {
-	earliestRecordTimeTruncatedUnix := a.getEarliestRecordTimeInTruncatedUnix(latestRecords)
-
-	aggregationPeriods := data_models.NewAggregationPeriodsStorage()
-
-	for _, record := range latestRecords {
-		a.createAccumulationPeriodsAndDistributeConsumptionBetweenThem(
-			record,
-			aggregationPeriods,
-			earliestRecordTimeTruncatedUnix,
-			aggregationIntervalSeconds,
-		)
+func (a *App) checkRecordOrderedProperly(latestRecords []*data_models.SensorValueRecord) {
+	latestRecordTimeIn := latestRecords[0].RecordInsertedTimeUnix
+	earliestRecordTimeIn := latestRecords[len(latestRecords)-1].RecordInsertedTimeUnix
+	if latestRecordTimeIn < earliestRecordTimeIn {
+		log.Error("records came in wrong order")
+		os.Exit(1)
 	}
+}
 
-	aggregationPeriods.DeleteEmptyPeriods()
-
+func (a *App) aggregate(aggregationIntervalSeconds int64, latestRecords []*data_models.SensorValueRecord) bool {
+	aggregationPeriods := a.processRecords(aggregationIntervalSeconds, latestRecords)
 	a.updateAggregationTable(aggregationPeriods)
-
-	a.deleteAggregatedRecords(latestRecords)
+	a.deleteProcessedRecords(latestRecords)
 	return true
 }
 
-func (a *App) createAccumulationPeriodsAndDistributeConsumptionBetweenThem(
+func (a *App) processRecords(aggregationIntervalSeconds int64,
+	latestRecords []*data_models.SensorValueRecord) *data_models.AggregationPeriodsStorage {
+
+	earliestRecordTimeInsertedTruncatedToHoursUnix := a.getEarliestRecordInsertedTimeTruncatedToHoursUnix(latestRecords)
+	aggregationPeriods := data_models.NewAggregationPeriodsStorage()
+	for _, record := range latestRecords {
+		a.createAccumulationPeriodsForRecordAndDistributeConsumptionBetweenThem(
+			record,
+			aggregationPeriods,
+			earliestRecordTimeInsertedTruncatedToHoursUnix,
+			aggregationIntervalSeconds,
+		)
+	}
+	aggregationPeriods.DeleteEmptyPeriods()
+	return aggregationPeriods
+}
+
+func (a *App) createAccumulationPeriodsForRecordAndDistributeConsumptionBetweenThem(
 	record *data_models.SensorValueRecord,
 	aggregationPeriods *data_models.AggregationPeriodsStorage,
 	earliestRecordTimeInTruncatedUnix,
@@ -66,7 +73,6 @@ func (a *App) createAccumulationPeriodsAndDistributeConsumptionBetweenThem(
 	if tooShort {
 		return
 	}
-
 	aggregationPeriodData := data_models.NewAggregationPeriodData(
 		record.BoxesSetID,
 		earliestRecordTimeInTruncatedUnix-aggregationIntervalSeconds,
@@ -112,7 +118,7 @@ func (a *App) updateAggregationTable(storage *data_models.AggregationPeriodsStor
 	}
 }
 
-func (a *App) deleteAggregatedRecords(records []*data_models.SensorValueRecord) {
+func (a *App) deleteProcessedRecords(records []*data_models.SensorValueRecord) {
 	deleteProcessedSensorValuesRecords(a.connection, context.Background(), records)
 }
 
@@ -130,8 +136,6 @@ func (a *App) createAggregationPeriodsForAggregatedRecordData(
 		aggregationPeriodData.StartUnix += aggregationIntervalSeconds
 		aggregatedPeriods.CreatePeriodIfNotExists(aggregationPeriodData)
 	}
-	accumulationPeriod.Repr()
-	aggregationPeriodData.Repr()
 }
 
 func (a *App) distributeRecordWholeConsumptionBetweenAggregationIntervals(
@@ -196,10 +200,10 @@ func (a *App) getLatestRecordsDateInDescending() ([]*data_models.SensorValueReco
 	return latestRecords, true
 }
 
-func (a *App) Vacuum() {
+func (a *App) VacuumSensorRecordsTable() {
 	vacuumSensorsRecords(a.connection, context.Background())
 }
 
-func (a *App) getEarliestRecordTimeInTruncatedUnix(latestRecords []*data_models.SensorValueRecord) int64 {
+func (a *App) getEarliestRecordInsertedTimeTruncatedToHoursUnix(latestRecords []*data_models.SensorValueRecord) int64 {
 	return truncateToHourUnix(latestRecords[len(latestRecords)-1].RecordInsertedTimeUnix, 0)
 }
