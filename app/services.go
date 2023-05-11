@@ -120,7 +120,6 @@ func parseRowsFromSensorValues(rows Rows, maxRecordsCount int) ([]*data_models.S
 			record.RecordInsertedTimeUnix = timePGFormat.Time.Unix()
 			result[i] = record
 			actualRecordsCount++
-			record.Repr()
 		}
 	}
 	return result[:actualRecordsCount], nil

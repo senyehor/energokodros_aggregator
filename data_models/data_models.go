@@ -20,6 +20,13 @@ type AggregationPeriod struct {
 	SensorValues float64
 }
 
+func (a *AggregationPeriod) CorrectTime() {
+	// 3 hour * 60 minutes in hour * 60 seconds in minute
+	timeDeltaSecondsDueToStoringWithoutTimestamps := int64(3 * 60 * 60)
+	a.Data.StartUnix -= timeDeltaSecondsDueToStoringWithoutTimestamps
+	a.Data.EndUnix -= timeDeltaSecondsDueToStoringWithoutTimestamps
+}
+
 type AccumulationPeriod struct {
 	DurationSeconds,
 	StartUnix,
