@@ -23,6 +23,7 @@ func (a *App) Aggregate() int {
 	latestRecords, found := a.getLatestRecordsDateInDescending()
 	for found {
 		a.checkRecordOrderedProperly(latestRecords)
+		// todo add timeout context
 		a.aggregate(latestRecords)
 		latestRecords, found = a.getLatestRecordsDateInDescending()
 		iterationsCount++
@@ -42,8 +43,8 @@ func (a *App) checkRecordOrderedProperly(latestRecords []*data_models.SensorValu
 
 func (a *App) aggregate(latestRecords []*data_models.SensorValueRecord) bool {
 	aggregationPeriods := a.processRecords(latestRecords)
-	a.deleteProcessedRecords(latestRecords)
 	a.updateAggregationTable(aggregationPeriods)
+	a.deleteProcessedRecords(latestRecords)
 	return true
 }
 

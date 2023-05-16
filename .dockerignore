@@ -9,4 +9,3 @@ docker-compose.yml
 *.env
 envs.d
 readme
-go.*
