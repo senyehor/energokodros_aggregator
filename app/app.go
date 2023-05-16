@@ -23,7 +23,7 @@ func (a *App) Aggregate() int {
 	latestRecords, found := a.getLatestRecordsDateInDescending()
 	for found {
 		a.checkRecordOrderedProperly(latestRecords)
-		// todo add timeout context
+		logIntervalBeingProcessed(latestRecords)
 		a.aggregate(latestRecords)
 		latestRecords, found = a.getLatestRecordsDateInDescending()
 		iterationsCount++
