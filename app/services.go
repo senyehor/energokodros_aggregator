@@ -2,7 +2,6 @@ package app
 
 import (
 	"aggregator/data_models"
-	"aggregator/utils"
 	"context"
 	"errors"
 	"github.com/jackc/pgtype"
@@ -46,8 +45,8 @@ func getCorrespondingIDForAggregationPeriod(
 			and aggregation_interval_end=$3
 			order by aggregation_interval_end desc limit 1;`
 
-	periodStart := utils.UnixToKievTZ(aggregationPeriod.Data.StartUnix, 0)
-	periodEnd := utils.UnixToKievTZ(aggregationPeriod.Data.EndUnix, 0)
+	periodStart := aggregationPeriod.Data.GetStartTime()
+	periodEnd := aggregationPeriod.Data.GetEndTime()
 
 	row := conn.QueryRow(ctx, query, aggregationPeriod.Data.BoxesSetID, periodStart, periodEnd)
 	var sensorValueId int
@@ -83,8 +82,8 @@ func insertIntoAggregationTable(conn Connection, ctx context.Context, period *da
 		ctx,
 		query,
 		period.Data.BoxesSetID,
-		utils.UnixToKievTZ(period.Data.StartUnix, 0),
-		utils.UnixToKievTZ(period.Data.EndUnix, 0),
+		period.Data.GetStartTime(),
+		period.Data.GetEndTime(),
 		period.SensorValues,
 	)
 	if err != nil {
@@ -118,7 +117,6 @@ func parseRowsFromSensorValues(rows Rows, maxRecordsCount int) ([]*data_models.S
 			if err != nil {
 				return nil, errors.New("something went wrong during scanning rows")
 			}
-			// in fact, due to db using timestamps without timezone RecordInsertedTimeUnix is todo
 			record.RecordInsertedTimeUnix = timePGFormat.Time.Unix()
 			result[i] = record
 			actualRecordsCount++
@@ -153,7 +151,7 @@ func logIntervalBeingProcessed(records []*data_models.SensorValueRecord) {
 }
 
 func logCreatedIntervals(first, last *data_models.AggregationPeriod) {
-	log.Infof("created intervals from\n %v \nto\n %v", first.Repr(), last.Repr())
+	log.Infof("created intervals from %v to %v", first.Repr(), last.Repr())
 }
 
 func logCreatingAggregationPeriodsForAggregatedRecordData(aggregationPeriodData *data_models.AggregationPeriodData) {

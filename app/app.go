@@ -93,7 +93,6 @@ func (a *App) updateAggregationTable(storage *data_models.AggregationPeriodsStor
 	logCreatedIntervals(iterator.First(), iterator.Last())
 	for iterator.HasNext() {
 		aggregationPeriod := iterator.GetAggregationPeriod()
-		//aggregationPeriod.CorrectTime() todo
 		sensorValueId, found := getCorrespondingIDForAggregationPeriod(
 			a.connection,
 			context.Background(),
