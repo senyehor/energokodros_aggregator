@@ -59,6 +59,14 @@ type AggregationPeriodsIterator struct {
 	iterationsCount          int
 }
 
+func (a *AggregationPeriodsIterator) First() *AggregationPeriod {
+	return a.aggregationPeriods[0]
+}
+
+func (a *AggregationPeriodsIterator) Last() *AggregationPeriod {
+	return a.aggregationPeriods[len(a.aggregationPeriods)-1]
+}
+
 func (a *AggregationPeriodsIterator) HasNext() bool {
 	if a.iterationsCount == a.length {
 		return false
@@ -175,9 +183,9 @@ func (s *SensorValueRecord) Repr() string {
 	accumulationPeriod, _ := time.ParseDuration(fmt.Sprintf("%v"+"ms", s.ValueAccumulationPeriodMilliseconds))
 	return "record date is from " +
 		utils.ShortTimeFormat(
-			utils.UnixToKievFormat(s.RecordInsertedTimeUnix-s.ValueAccumulationPeriodMilliseconds/1000,
+			utils.UnixToKievTZ(s.RecordInsertedTimeUnix-s.ValueAccumulationPeriodMilliseconds/1000,
 				0)) +
-		" to " + utils.ShortTimeFormat(utils.UnixToKievFormat(s.RecordInsertedTimeUnix, 0)) +
+		" to " + utils.ShortTimeFormat(utils.UnixToKievTZ(s.RecordInsertedTimeUnix, 0)) +
 		fmt.Sprintf(" and it (%v) was accumulated during ", s.SensorValue) + accumulationPeriod.String()
 }
 func (a *AggregationPeriod) Repr() string {
@@ -188,15 +196,15 @@ func (a *AccumulationPeriod) Repr() string {
 	return fmt.Sprintf(
 		"duration is %v start %v end %v avg consumption %v",
 		duration,
-		utils.ShortTimeFormat(utils.UnixToKievFormat(a.StartUnix, 0)),
-		utils.ShortTimeFormat(utils.UnixToKievFormat(a.EndUnix, 0)),
+		utils.ShortTimeFormat(utils.UnixToKievTZ(a.StartUnix, 0)),
+		utils.ShortTimeFormat(utils.UnixToKievTZ(a.EndUnix, 0)),
 		a.AverageConsumption,
 	)
 }
 func (a *AggregationPeriodData) Repr() string {
 	return fmt.Sprintf("boxes set id %v start %v end %v",
 		a.BoxesSetID,
-		utils.ShortTimeFormat(utils.UnixToKievFormat(a.StartUnix, 0)),
-		utils.ShortTimeFormat(utils.UnixToKievFormat(a.EndUnix, 0)),
+		utils.ShortTimeFormat(utils.UnixToKievTZ(a.StartUnix, 0)),
+		utils.ShortTimeFormat(utils.UnixToKievTZ(a.EndUnix, 0)),
 	)
 }

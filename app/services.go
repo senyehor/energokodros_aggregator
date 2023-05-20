@@ -15,7 +15,7 @@ import (
 func getLatestRecords(conn Connection, ctx context.Context, limit int) ([]*data_models.SensorValueRecord, error) {
 	selectLastRecordsQuery :=
 		`SELECT
-			sensor_value_id, boxes_set_id, value_datein, value_accumulation_period, sensor_value, package_number
+			sensor_value_id, boxes_set_id, value_date_in, value_accumulation_period, sensor_value, package_number
          FROM public.sensor_values
 	     ORDER BY sensor_value_id DESC LIMIT $1;`
 	rows, err := conn.Query(ctx, selectLastRecordsQuery, limit)
@@ -41,10 +41,13 @@ func getCorrespondingIDForAggregationPeriod(
 			sensor_value_id
 		FROM sensor_values_h
 		WHERE 
-			boxes_set_id=$1 and value_date_1=$2 and value_date_2=$3 order by value_date_2 desc limit 1;`
+			boxes_set_id=$1
+			and aggregation_interval_start=$2
+			and aggregation_interval_end=$3
+			order by aggregation_interval_end desc limit 1;`
 
-	periodStart := utils.UnixToKievFormat(aggregationPeriod.Data.StartUnix, 0)
-	periodEnd := utils.UnixToKievFormat(aggregationPeriod.Data.EndUnix, 0)
+	periodStart := utils.UnixToKievTZ(aggregationPeriod.Data.StartUnix, 0)
+	periodEnd := utils.UnixToKievTZ(aggregationPeriod.Data.EndUnix, 0)
 
 	row := conn.QueryRow(ctx, query, aggregationPeriod.Data.BoxesSetID, periodStart, periodEnd)
 	var sensorValueId int
@@ -74,14 +77,14 @@ func deleteProcessedSensorValuesRecords(conn Connection, ctx context.Context, re
 func insertIntoAggregationTable(conn Connection, ctx context.Context, period *data_models.AggregationPeriod) {
 	query :=
 		`INSERT INTO sensor_values_h
-         (boxes_set_id, value_date_1, value_date_2, sensor_value)
+         (boxes_set_id, aggregation_interval_start, aggregation_interval_end, sensor_value)
 		 values ($1, $2, $3, $4)`
 	_, err := conn.Exec(
 		ctx,
 		query,
 		period.Data.BoxesSetID,
-		utils.UnixToKievFormat(period.Data.StartUnix, 0),
-		utils.UnixToKievFormat(period.Data.EndUnix, 0),
+		utils.UnixToKievTZ(period.Data.StartUnix, 0),
+		utils.UnixToKievTZ(period.Data.EndUnix, 0),
 		period.SensorValues,
 	)
 	if err != nil {
@@ -115,7 +118,7 @@ func parseRowsFromSensorValues(rows Rows, maxRecordsCount int) ([]*data_models.S
 			if err != nil {
 				return nil, errors.New("something went wrong during scanning rows")
 			}
-			// in fact, due to db using timestamps without timezone RecordInsertedTimeUnix is adf
+			// in fact, due to db using timestamps without timezone RecordInsertedTimeUnix is todo
 			record.RecordInsertedTimeUnix = timePGFormat.Time.Unix()
 			result[i] = record
 			actualRecordsCount++
@@ -143,8 +146,16 @@ func logIntervalBeingProcessed(records []*data_models.SensorValueRecord) {
 	earliestRecord := records[len(records)-1]
 	log.Info(
 		"processing interval from " +
-			utils.ShortTimeFormat(utils.UnixToKievFormat(earliestRecord.RecordInsertedTimeUnix, 0)) +
+			time.Unix(earliestRecord.RecordInsertedTimeUnix, 0).String() +
 			" to " +
-			utils.ShortTimeFormat(utils.UnixToKievFormat(latestRecord.RecordInsertedTimeUnix, 0)),
+			time.Unix(latestRecord.RecordInsertedTimeUnix, 0).String(),
 	)
+}
+
+func logCreatedIntervals(first, last *data_models.AggregationPeriod) {
+	log.Infof("created intervals from\n %v \nto\n %v", first.Repr(), last.Repr())
+}
+
+func logCreatingAggregationPeriodsForAggregatedRecordData(aggregationPeriodData *data_models.AggregationPeriodData) {
+	log.Infof("creating intervals for %v", aggregationPeriodData.Repr())
 }
