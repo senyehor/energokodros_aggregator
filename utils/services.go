@@ -1,12 +1,27 @@
 package utils
 
 import (
+	"errors"
 	log "github.com/sirupsen/logrus"
 	"os"
 	"strconv"
 	"strings"
 	"time"
 )
+
+// TimeoutFunction is not panic-safe
+func TimeoutFunction(timeout time.Duration, functionToBeExecuted func(chan error)) error {
+	ch := make(chan error, 1)
+	go functionToBeExecuted(ch)
+	for {
+		select {
+		case err := <-ch:
+			return err
+		case <-time.After(timeout):
+			return errors.New("function reached timeout")
+		}
+	}
+}
 
 func UnixToKievTZ(seconds, milliseconds int64) time.Time {
 	kiyvFormat, _ := time.LoadLocation("Europe/Kiev")
