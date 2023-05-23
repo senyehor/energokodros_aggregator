@@ -8,6 +8,11 @@ import (
 
 func main() {
 	config := utils.GetAppConfig()
+	if config.Debug() {
+		log.SetLevel(log.DebugLevel)
+	} else {
+		log.SetLevel(log.InfoLevel)
+	}
 
 	application := app.CreateApp(config)
 	iterationsMade := application.Aggregate()
