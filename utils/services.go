@@ -1,7 +1,7 @@
 package utils
 
 import (
-	"errors"
+	"fmt"
 	log "github.com/sirupsen/logrus"
 	"os"
 	"strconv"
@@ -35,8 +35,9 @@ func ShortTimeFormat(t time.Time) string {
 func getValueFromEnv(key string) string {
 	value, found := os.LookupEnv(key)
 	if !found {
-		log.Errorf("failed to get %v from env", key)
-		os.Exit(1)
+		err := fmt.Errorf("failed to get %v from env", key)
+		log.Error(err)
+		panic(err)
 	}
 	return strings.Trim(value, "\"")
 }
@@ -45,8 +46,8 @@ func getInt64FromEnv(key string) int64 {
 	value := getValueFromEnv(key)
 	res, err := strconv.ParseInt(value, 10, 64)
 	if err != nil {
-		log.Errorf("failed to parse %v as int from env", value)
-		os.Exit(1)
+		err := fmt.Errorf("failed to parse %v as int from env", value)
+		panic(err)
 	}
 	return res
 }
@@ -55,8 +56,8 @@ func getBoolFromEnv(key string) bool {
 	value := getValueFromEnv(key)
 	res, err := strconv.ParseBool(value)
 	if err != nil {
-		log.Error("failed to parse %v as bool from env", value)
-		os.Exit(1)
+		err := fmt.Errorf("failed to parse %v as bool from env", value)
+		panic(err)
 	}
 	return res
 }

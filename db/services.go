@@ -5,7 +5,6 @@ import (
 	"context"
 	"github.com/jackc/pgx/v4"
 	log "github.com/sirupsen/logrus"
-	"os"
 )
 
 func getConnection(connString string) *pgx.Conn {
@@ -13,13 +12,13 @@ func getConnection(connString string) *pgx.Conn {
 	if err != nil {
 		log.Error(err)
 		log.Error("Could not parse config")
-		os.Exit(1)
+		panic(err)
 	}
 
 	pool, err := pgx.ConnectConfig(context.Background(), config)
 	if err != nil {
 		log.Error(err)
-		os.Exit(1)
+		panic(err)
 	}
 	return pool
 }
