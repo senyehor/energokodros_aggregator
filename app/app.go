@@ -51,7 +51,6 @@ func (a *App) processRecords(latestRecords []*data_models.SensorValueRecord) *da
 			earliestRecordTimeInsertedTruncatedToHoursUnix,
 		)
 	}
-	aggregationPeriods.DeleteEmptyPeriods()
 	return aggregationPeriods
 }
 
