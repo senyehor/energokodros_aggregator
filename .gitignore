@@ -4,3 +4,4 @@
 .idea/
 envs.d/
 *.log
+.DS_Store
